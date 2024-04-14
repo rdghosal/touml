@@ -9,3 +9,7 @@ edition = "2021"
 anyhow = "1.0.82"
 rayon = "1.9.0"
 rustpython-parser = {git = "https://github.com/RustPython/Parser.git"}
+
+[lib]
+name = "touml"
+path = "src/lib.rs"
