@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use crate::parsers::*;
 
 use std::collections::HashSet;
 
@@ -13,15 +12,13 @@ struct MermaidMethod {
 
 struct MermaidField(String, AccessLevel);
 
-struct MermaidClass {
+pub(crate) struct MermaidClass {
     name: String,
     parents: HashSet<String>,
     methods: HashSet<MermaidMethod>,
     fields: HashSet<MermaidField>,
 }
 
-impl MermaidClass {
-    fn from_python(cls: PyClass) -> Self {
-        todo!()
-    }
+pub(crate) trait MerimaidMapper {
+    fn to_mermaid(self) -> MermaidClass;
 }

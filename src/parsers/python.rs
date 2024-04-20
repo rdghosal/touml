@@ -1,4 +1,6 @@
+use crate::generators::mermaid::MerimaidMapper;
 use crate::prelude::*;
+use crate::generators::*;
 
 use rustpython_parser::{ast, Parse};
 use std::{collections::HashSet, path::PathBuf};
@@ -94,4 +96,10 @@ pub fn parse_module(contents: String, path: &str) -> Result<Vec<PyClass>> {
         })
         .collect::<Vec<PyClass>>();
     Ok(parsed)
+}
+
+impl MerimaidMapper for PyClass {
+    fn to_mermaid(self) -> mermaid::MermaidClass {
+        todo!()
+    }
 }
