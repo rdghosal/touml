@@ -186,7 +186,6 @@ def my_func(name: str):
             }
             ast::Stmt::AsyncFunctionDef(f) => {
                 let method = PyMethod::from(f);
-                dbg!("HEY!");
                 assert_eq!(
                     method,
                     PyMethod {
