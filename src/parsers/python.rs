@@ -189,13 +189,14 @@ impl MerimaidMapper for PyClass {
 
 #[cfg(test)]
 mod test {
-
     use super::*;
 
     #[test]
-    fn test_function_parse() {
-        let func = r#"def my_func(name: str):
-                        return f"Hello {name!r}!""#;
+    fn test_sync_function_parse() {
+        let func = r#"
+def my_func(name: str):
+    return f"Hello {name}!"
+"#;
         match &ast::Suite::parse(func, ".").unwrap()[0] {
             ast::Stmt::FunctionDef(f) => {
                 let method = PyMethod::from(f);
@@ -206,6 +207,42 @@ mod test {
                         args: vec!["name".to_string()],
                         returns: None,
                         access: AccessLevel::Public
+                    }
+                );
+            }
+            ast::Stmt::AsyncFunctionDef(f) => {
+                let method = PyMethod::from(f);
+                dbg!("HEY!");
+                assert_eq!(
+                    method,
+                    PyMethod {
+                        name: "my_other_func".to_string(),
+                        args: vec!["name".to_string(), "age".to_string()],
+                        returns: Some("str".to_string()),
+                        access: AccessLevel::Private
+                    }
+                );
+            }
+            _ => panic!("failed to parse function"),
+        };
+    }
+
+    #[test]
+    fn test_aync_function_parse() {
+        let func = r#"
+async def _my_other_func(name: str, age: int = 18) -> str:
+    return f"Hello, I'm {name} and I'm {int} years-old!"
+"#;
+        match &ast::Suite::parse(func, ".").unwrap()[0] {
+            ast::Stmt::AsyncFunctionDef(f) => {
+                let method = PyMethod::from(f);
+                assert_eq!(
+                    method,
+                    PyMethod {
+                        name: "_my_other_func".to_string(),
+                        args: vec!["name".to_string(), "age".to_string()],
+                        returns: Some("str".to_string()),
+                        access: AccessLevel::Private
                     }
                 );
             }
