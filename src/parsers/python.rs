@@ -109,14 +109,12 @@ impl TryFrom<&ast::StmtAssign> for PyField {
         };
         let access = get_access_from_name(&name);
         let (pytype, default) = match value.value.borrow() {
-            ast::Expr::Constant(c) => {
-                match &c.value {
-                    ast::Constant::Str(s) => ("str".to_string(), Some(s.to_string())),
-                    ast::Constant::Int(i) => ("int".to_string(), Some(i.to_string())),
-                    ast::Constant::Bool(b) => ("bool".to_string(), Some(b.to_string())),
-                    ast::Constant::None => ("None".to_string(), None),
-                    _ => bail!(PyParseError::StmtAssignParse(value.clone())),
-                }
+            ast::Expr::Constant(c) => match &c.value {
+                ast::Constant::Str(s) => ("str".to_string(), Some(s.to_string())),
+                ast::Constant::Int(i) => ("int".to_string(), Some(i.to_string())),
+                ast::Constant::Bool(b) => ("bool".to_string(), Some(b.to_string())),
+                ast::Constant::None => ("None".to_string(), None),
+                _ => bail!(PyParseError::StmtAssignParse(value.clone())),
             },
             _ => (("None".to_string()), None),
         };
@@ -145,21 +143,17 @@ impl TryFrom<&ast::StmtAnnAssign> for PyField {
         };
         let access = get_access_from_name(&name);
         let default = match &value.value {
-            Some(v) => {
-                match v.borrow() {
-                    ast::Expr::Constant(c) => {
-                        match &c.value {
-                            ast::Constant::Str(s) => Some(s.to_string()),
-                            ast::Constant::Int(i) => Some(i.to_string()),
-                            ast::Constant::Bool(b) => Some(b.to_string()),
-                            ast::Constant::None => Some("None".to_string()),
-                            _ => None
-                        }
-                    },
-                    _ => bail!(PyParseError::StmtAnnAssignParse(value.clone())),
-                }
+            Some(v) => match v.borrow() {
+                ast::Expr::Constant(c) => match &c.value {
+                    ast::Constant::Str(s) => Some(s.to_string()),
+                    ast::Constant::Int(i) => Some(i.to_string()),
+                    ast::Constant::Bool(b) => Some(b.to_string()),
+                    ast::Constant::None => Some("None".to_string()),
+                    _ => None,
+                },
+                _ => bail!(PyParseError::StmtAnnAssignParse(value.clone())),
             },
-            None => Some("None".to_string())
+            None => Some("None".to_string()),
         };
         Ok(Self {
             name,
@@ -178,7 +172,7 @@ pymethod_impl! {
 fn get_access_from_name(name: &str) -> AccessLevel {
     if name.starts_with("_") {
         AccessLevel::Private
-   } else {
+    } else {
         AccessLevel::Public
     }
 }
@@ -209,17 +203,19 @@ fn get_parent_class_names(cls: &ast::StmtClassDef) -> HashSet<String> {
     parents
 }
 
-fn get_fields_and_methods(cls: &ast::StmtClassDef) -> Result<(HashSet<PyField>, HashSet<PyMethod>)> {
+fn get_fields_and_methods(
+    cls: &ast::StmtClassDef,
+) -> Result<(HashSet<PyField>, HashSet<PyMethod>)> {
     let mut fields = HashSet::new();
     let mut methods = HashSet::new();
     for attr in cls.body.iter() {
         match attr {
             ast::Stmt::AnnAssign(a) => {
                 fields.insert(PyField::try_from(a)?);
-            },
+            }
             ast::Stmt::Assign(a) => {
                 fields.insert(PyField::try_from(a)?);
-            },
+            }
             ast::Stmt::AsyncFunctionDef(func) => {
                 methods.insert(PyMethod::from(func));
             }
@@ -242,10 +238,10 @@ pub(crate) fn parse_module(contents: String, path: &str) -> Result<Vec<PyClass>>
         })
         .map(|cls| {
             let name = get_class_name(cls);
+            let access = get_access_from_name(&name);
             let parents = get_parent_class_names(cls);
             let (fields, methods) = get_fields_and_methods(cls).unwrap(); // TODO: handle error
-            // let mut fields = HashSet::new();
-            todo!()
+                                                                          // let mut fields = HashSet::new();
         })
         .collect::<Vec<PyClass>>();
     Ok(parsed)
