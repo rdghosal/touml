@@ -33,7 +33,7 @@ pub struct PyClass {
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct PyField {
     name: String,
-    pytype: Option<String>,
+    pytype: String,
     default: Option<String>,
     access: AccessLevel,
 }
@@ -93,7 +93,6 @@ macro_rules! pymethod_impl {
 impl TryFrom<&ast::StmtAssign> for PyField {
     type Error = anyhow::Error;
     fn try_from(value: &ast::StmtAssign) -> Result<PyField> {
-        let pytype = None;
         let ident = value.targets.iter().next();
         let name = match ident {
             Some(expr) => {
@@ -109,15 +108,17 @@ impl TryFrom<&ast::StmtAssign> for PyField {
             bail!(PyParseError::StmtAssignParse(value.clone()));
         };
         let access = get_access_from_name(&name);
-        let default = match value.value.borrow() {
+        let (pytype, default) = match value.value.borrow() {
             ast::Expr::Constant(c) => {
-                if let Some(v) = c.value.as_str() {
-                    Some(v.to_string())
-                } else {
-                    bail!(PyParseError::StmtAssignParse(value.clone()));
+                match &c.value {
+                    ast::Constant::Str(s) => ("str".to_string(), Some(s.to_string())),
+                    ast::Constant::Int(i) => ("int".to_string(), Some(i.to_string())),
+                    ast::Constant::Bool(b) => ("bool".to_string(), Some(b.to_string())),
+                    ast::Constant::None => ("None".to_string(), None),
+                    _ => bail!(PyParseError::StmtAssignParse(value.clone())),
                 }
             },
-            _ => None,
+            _ => (("None".to_string()), None),
         };
         Ok(Self {
             name,
@@ -132,8 +133,11 @@ impl TryFrom<&ast::StmtAnnAssign> for PyField {
     type Error = anyhow::Error;
     fn try_from(value: &ast::StmtAnnAssign) -> Result<PyField> {
         let name: String;
-        let pytype = None;
         let ident = value.target.clone();
+        let ast::Expr::Name(pytype) = value.annotation.borrow() else {
+            bail!(PyParseError::StmtAnnAssignParse(value.clone()));
+        };
+        let pytype = pytype.id.to_string();
         if let ast::Expr::Name(n) = *ident {
             name = n.id.to_string();
         } else {
@@ -144,16 +148,18 @@ impl TryFrom<&ast::StmtAnnAssign> for PyField {
             Some(v) => {
                 match v.borrow() {
                     ast::Expr::Constant(c) => {
-                        if let Some(v) = c.value.as_str() {
-                            Some(v.to_string())
-                        } else {
-                            bail!(PyParseError::StmtAnnAssignParse(value.clone()));
+                        match &c.value {
+                            ast::Constant::Str(s) => Some(s.to_string()),
+                            ast::Constant::Int(i) => Some(i.to_string()),
+                            ast::Constant::Bool(b) => Some(b.to_string()),
+                            ast::Constant::None => Some("None".to_string()),
+                            _ => None
                         }
                     },
-                    _ => None,
+                    _ => bail!(PyParseError::StmtAnnAssignParse(value.clone())),
                 }
             },
-            None => None,
+            None => Some("None".to_string())
         };
         Ok(Self {
             name,
@@ -291,7 +297,7 @@ def my_func(name: str):
     }
 
     #[test]
-    fn test_aync_function_parse() {
+    fn test_async_function_parse() {
         let func = r#"
 async def _my_other_func(name: str, age: int = 18) -> str:
     return f"Hello, I'm {name} and I'm {int} years-old!"
@@ -310,6 +316,46 @@ async def _my_other_func(name: str, age: int = 18) -> str:
                 );
             }
             _ => panic!("failed to parse function"),
+        }
+    }
+
+    #[test]
+    fn test_parse_assignment() {
+        let stmt = "x = 42";
+        match &ast::Suite::parse(stmt, ".").unwrap()[0] {
+            ast::Stmt::Assign(a) => {
+                let assignment = PyField::try_from(a).unwrap();
+                assert_eq!(
+                    assignment,
+                    PyField {
+                        name: "x".to_string(),
+                        pytype: "int".to_string(),
+                        default: Some("42".to_string()),
+                        access: AccessLevel::Public
+                    }
+                );
+            }
+            _ => panic!("failed to parse assignment"),
+        }
+    }
+
+    #[test]
+    fn test_parse_annotated_assignment() {
+        let stmt = "x: int = 42";
+        match &ast::Suite::parse(stmt, ".").unwrap()[0] {
+            ast::Stmt::AnnAssign(a) => {
+                let assignment = PyField::try_from(a).unwrap();
+                assert_eq!(
+                    assignment,
+                    PyField {
+                        name: "x".to_string(),
+                        pytype: "int".to_string(),
+                        default: Some("42".to_string()),
+                        access: AccessLevel::Public
+                    }
+                );
+            }
+            _ => panic!("failed to parse assignment"),
         }
     }
 }
