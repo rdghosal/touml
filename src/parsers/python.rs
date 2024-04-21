@@ -241,7 +241,13 @@ pub(crate) fn parse_module(contents: String, path: &str) -> Result<Vec<PyClass>>
             let access = get_access_from_name(&name);
             let parents = get_parent_class_names(cls);
             let (fields, methods) = get_fields_and_methods(cls).unwrap(); // TODO: handle error
-                                                                          // let mut fields = HashSet::new();
+            PyClass {
+                name,
+                access,
+                parents,
+                fields,
+                methods,
+            }
         })
         .collect::<Vec<PyClass>>();
     Ok(parsed)
