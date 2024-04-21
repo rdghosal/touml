@@ -8,89 +8,12 @@ use rustpython_parser::{ast, Parse};
 use std::{collections::HashSet, path::PathBuf};
 use thiserror::Error;
 
-struct PyField(String, AccessLevel);
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-struct PyMethod {
-    name: String,
-    access: AccessLevel,
-    args: Vec<String>,
-    returns: Option<String>,
-}
-
-impl From<&ast::StmtFunctionDef> for PyMethod {
-    fn from(value: &ast::StmtFunctionDef) -> Self {
-        let name = value.name.to_string();
-        let access = get_access_from_name(&name);
-        let args = vec![
-            value.args.posonlyargs.clone(),
-            value.args.kwonlyargs.clone(),
-            value.args.args.clone(),
-        ]
-        .iter()
-        .flatten()
-        .map(|a| a.def.arg.to_string())
-        .collect();
-        let returns = if value.returns.is_some() {
-            match *value.returns.clone().unwrap() {
-                ast::Expr::Constant(c) => {
-                    Some(c.value.as_str().unwrap_or(&String::new()).to_owned())
-                }
-                ast::Expr::Attribute(a) => Some(a.attr.to_string()),
-                ast::Expr::Name(n) => Some(n.id.to_string()),
-                _ => {
-                    dbg!("failed to parse {:?}", &value.returns);
-                    None
-                }
-            }
-        } else {
-            None
-        };
-
-        Self {
-            name,
-            access,
-            args,
-            returns,
-        }
-    }
-}
-impl From<&ast::StmtAsyncFunctionDef> for PyMethod {
-    fn from(value: &ast::StmtAsyncFunctionDef) -> Self {
-        let name = value.name.to_string();
-        let access = get_access_from_name(&name);
-        let args = vec![
-            value.args.posonlyargs.clone(),
-            value.args.kwonlyargs.clone(),
-            value.args.args.clone(),
-        ]
-        .iter()
-        .flatten()
-        .map(|a| a.def.arg.to_string())
-        .collect();
-        let returns = if value.returns.is_some() {
-            match *value.returns.clone().unwrap() {
-                ast::Expr::Constant(c) => {
-                    Some(c.value.as_str().unwrap_or(&String::new()).to_owned())
-                }
-                ast::Expr::Attribute(a) => Some(a.attr.to_string()),
-                ast::Expr::Name(n) => Some(n.id.to_string()),
-                _ => {
-                    dbg!("failed to parse {:?}", &value.returns);
-                    None
-                }
-            }
-        } else {
-            None
-        };
-
-        Self {
-            name,
-            access,
-            args,
-            returns,
-        }
-    }
+#[derive(Error, Debug)]
+enum PythonParseError {
+    #[error("found unexpected statement of type {0:?}")]
+    StmtType(ast::Stmt),
+    #[error("found unexpected expression of type {0:?}")]
+    ExprType(ast::Expr),
 }
 
 pub struct PyClass {
@@ -101,12 +24,63 @@ pub struct PyClass {
     fields: HashSet<PyField>,
 }
 
-#[derive(Error, Debug)]
-enum PythonParseError {
-    #[error("found unexpected statement of type {0:?}")]
-    StmtType(ast::Stmt),
-    #[error("found unexpected expression of type {0:?}")]
-    ExprType(ast::Expr),
+struct PyField(String, AccessLevel);
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+struct PyMethod {
+    name: String,
+    access: AccessLevel,
+    args: Vec<String>,
+    returns: Option<String>,
+}
+
+macro_rules! pyfunc_impl {
+    ( $($s: path)+) => {
+        $(
+            impl From<&$s> for PyMethod {
+                fn from(value: &$s) -> Self {
+                    let name = value.name.to_string();
+                    let access = get_access_from_name(&name);
+                    let args = vec![
+                        value.args.posonlyargs.clone(),
+                        value.args.kwonlyargs.clone(),
+                        value.args.args.clone(),
+                    ]
+                    .iter()
+                    .flatten()
+                    .map(|a| a.def.arg.to_string())
+                    .collect();
+                    let returns = if value.returns.is_some() {
+                        match *value.returns.clone().unwrap() {
+                            ast::Expr::Constant(c) => {
+                                Some(c.value.as_str().unwrap_or(&String::new()).to_owned())
+                            }
+                            ast::Expr::Attribute(a) => Some(a.attr.to_string()),
+                            ast::Expr::Name(n) => Some(n.id.to_string()),
+                            _ => {
+                                dbg!("failed to parse {:?}", &value.returns);
+                                None
+                            }
+                        }
+                    } else {
+                        None
+                    };
+
+                    Self {
+                        name,
+                        access,
+                        args,
+                        returns,
+                    }
+                }
+            }
+        )?
+    };
+}
+
+pyfunc_impl! { 
+    ast::StmtFunctionDef
+    ast::StmtAsyncFunctionDef 
 }
 
 fn get_access_from_name(name: &str) -> AccessLevel {
