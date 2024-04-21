@@ -90,6 +90,11 @@ macro_rules! pymethod_impl {
     };
 }
 
+pymethod_impl! {
+    ast::StmtFunctionDef
+    ast::StmtAsyncFunctionDef
+}
+
 impl TryFrom<&ast::StmtAssign> for PyField {
     type Error = anyhow::Error;
     fn try_from(value: &ast::StmtAssign) -> Result<PyField> {
@@ -162,11 +167,6 @@ impl TryFrom<&ast::StmtAnnAssign> for PyField {
             default,
         })
     }
-}
-
-pymethod_impl! {
-    ast::StmtFunctionDef
-    ast::StmtAsyncFunctionDef
 }
 
 fn get_access_from_name(name: &str) -> AccessLevel {
