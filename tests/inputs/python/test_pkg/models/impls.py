@@ -17,7 +17,7 @@ def init_value_3() -> dict[str, int]:
 
 class StrClass(Base, StrMixin):
     value: str
-    some_other_value: str
+    some_other_values: list
     yet_another_value: str
 
     def get_concatenated(self) -> str:

@@ -33,7 +33,7 @@ pub struct PyClass {
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct PyField {
     name: String,
-    pytype: String,
+    pytype: Option<String>,
     default: Option<String>,
     access: AccessLevel,
 }
@@ -114,14 +114,15 @@ impl TryFrom<&ast::StmtAssign> for PyField {
         };
         let access = get_access_from_name(&name);
         let (pytype, default) = match value.value.borrow() {
+            // TODO: handle container types
             ast::Expr::Constant(c) => match &c.value {
-                ast::Constant::Str(s) => ("str".to_string(), Some(s.to_string())),
-                ast::Constant::Int(i) => ("int".to_string(), Some(i.to_string())),
-                ast::Constant::Bool(b) => ("bool".to_string(), Some(b.to_string())),
-                ast::Constant::None => ("None".to_string(), None),
+                ast::Constant::Str(s) => (Some("str".to_string()), Some(s.to_string())),
+                ast::Constant::Int(i) => (Some("int".to_string()), Some(i.to_string())),
+                ast::Constant::Bool(b) => (Some("bool".to_string()), Some(b.to_string())),
+                ast::Constant::None => (Some("None".to_string()), None),
                 _ => bail!(PyParseError::StmtAssignParse(value.clone())),
             },
-            _ => (("None".to_string()), None),
+            _ => (None, None),
         };
         Ok(Self {
             name,
@@ -137,10 +138,25 @@ impl TryFrom<&ast::StmtAnnAssign> for PyField {
     fn try_from(value: &ast::StmtAnnAssign) -> Result<PyField> {
         let name: String;
         let ident = value.target.clone();
-        let ast::Expr::Name(pytype) = value.annotation.borrow() else {
-            bail!(PyParseError::StmtAnnAssignParse(value.clone()));
+        let pytype = match value.annotation.borrow() {
+            ast::Expr::Name(n) => {
+                Some(n.id.to_string())
+            },
+            ast::Expr::Subscript(s) => {
+                let ast::Expr::Name(container_t) = s.value.borrow() else {
+                    bail!(PyParseError::StmtAnnAssignParse(value.clone()));
+                };
+                let ast::Expr::Name(contained_t) = s.slice.borrow() else {
+                    bail!(PyParseError::StmtAnnAssignParse(value.clone()));
+                };
+                Some(format!(
+                    "{}[{}]",
+                    container_t.id.as_str(),
+                    contained_t.id.as_str()
+                ))
+            },
+            _ => bail!(PyParseError::StmtAnnAssignParse(value.clone()))
         };
-        let pytype = pytype.id.to_string();
         if let ast::Expr::Name(n) = *ident {
             name = n.id.to_string();
         } else {
@@ -158,7 +174,7 @@ impl TryFrom<&ast::StmtAnnAssign> for PyField {
                 },
                 _ => bail!(PyParseError::StmtAnnAssignParse(value.clone())),
             },
-            None => Some("None".to_string()),
+            None => None,
         };
         Ok(Self {
             name,
@@ -331,7 +347,7 @@ async def _my_other_func(name: str, age: int = 18) -> str:
                     assignment,
                     PyField {
                         name: "x".to_string(),
-                        pytype: "int".to_string(),
+                        pytype: Some("int".to_string()),
                         default: Some("42".to_string()),
                         access: AccessLevel::Public
                     }
@@ -343,7 +359,7 @@ async def _my_other_func(name: str, age: int = 18) -> str:
 
     #[test]
     fn test_parse_annotated_assignment() {
-        let stmt = "x: int = 42";
+        let stmt = "x: list[int]";
         match &ast::Suite::parse(stmt, ".").unwrap()[0] {
             ast::Stmt::AnnAssign(a) => {
                 let assignment = PyField::try_from(a).unwrap();
@@ -351,8 +367,8 @@ async def _my_other_func(name: str, age: int = 18) -> str:
                     assignment,
                     PyField {
                         name: "x".to_string(),
-                        pytype: "int".to_string(),
-                        default: Some("42".to_string()),
+                        pytype: Some("list[int]".to_string()),
+                        default: None,
                         access: AccessLevel::Public
                     }
                 );

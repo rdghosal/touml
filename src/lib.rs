@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use anyhow::Result;
 
-fn get_file_paths(root: PathBuf, target_exts: &HashSet<&'static str>) -> Result<Vec<PathBuf>> {
+pub fn get_file_paths(root: PathBuf, target_exts: &HashSet<&'static str>) -> Result<Vec<PathBuf>> {
     let mut result = Vec::<PathBuf>::new();
     if root.is_dir() {
         for entry in root.read_dir()? {
