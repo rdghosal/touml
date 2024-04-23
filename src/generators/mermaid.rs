@@ -12,13 +12,13 @@ struct MermaidMethod {
 
 struct MermaidField(String, AccessLevel);
 
-pub(crate) struct MermaidClass {
+pub struct MermaidClass {
     name: String,
     parents: HashSet<String>,
     methods: HashSet<MermaidMethod>,
     fields: HashSet<MermaidField>,
 }
 
-pub(crate) trait MerimaidMapper {
+pub trait MerimaidMapper {
     fn to_mermaid(self) -> MermaidClass;
 }

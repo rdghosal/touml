@@ -244,7 +244,7 @@ fn get_fields_and_methods(
     Ok((fields, methods))
 }
 
-pub(crate) fn parse_module(contents: String, path: &str) -> Result<Vec<PyClass>> {
+pub fn parse_module(contents: String, path: &str) -> Result<Vec<PyClass>> {
     let nodes = ast::Suite::parse(&contents, path);
     let parsed = nodes?
         .iter()
