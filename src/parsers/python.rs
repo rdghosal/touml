@@ -95,6 +95,27 @@ pymethod_impl! {
     ast::StmtAsyncFunctionDef
 }
 
+fn parse_pyvalue(expr: &ast::Expr) -> Option<String> {
+    match expr {
+        ast::Expr::Constant(c) => match &c.value {
+            ast::Constant::Str(s) => Some(s.to_string()),
+            ast::Constant::Int(i) => Some(i.to_string()),
+            ast::Constant::Bool(b) => Some(b.to_string()),
+            ast::Constant::None => Some("None".to_string()),
+            _ => None,
+        },
+        ast::Expr::List(l) => {
+            let tokens = l
+                .elts
+                .iter()
+                .filter_map(|e| parse_pyvalue(e))
+                .collect::<Vec<_>>();
+            Some(format!("[{}]", tokens.join(", ")))
+        }
+        _ => None,
+    }
+}
+
 impl TryFrom<&ast::StmtAssign> for PyField {
     type Error = anyhow::Error;
     fn try_from(value: &ast::StmtAssign) -> Result<PyField> {
@@ -139,9 +160,7 @@ impl TryFrom<&ast::StmtAnnAssign> for PyField {
         let name: String;
         let ident = value.target.clone();
         let pytype = match value.annotation.borrow() {
-            ast::Expr::Name(n) => {
-                Some(n.id.to_string())
-            },
+            ast::Expr::Name(n) => Some(n.id.to_string()),
             ast::Expr::Subscript(s) => {
                 let ast::Expr::Name(container_t) = s.value.borrow() else {
                     bail!(PyParseError::StmtAnnAssignParse(value.clone()));
@@ -154,8 +173,8 @@ impl TryFrom<&ast::StmtAnnAssign> for PyField {
                     container_t.id.as_str(),
                     contained_t.id.as_str()
                 ))
-            },
-            _ => bail!(PyParseError::StmtAnnAssignParse(value.clone()))
+            }
+            _ => bail!(PyParseError::StmtAnnAssignParse(value.clone())),
         };
         if let ast::Expr::Name(n) = *ident {
             name = n.id.to_string();
@@ -163,18 +182,10 @@ impl TryFrom<&ast::StmtAnnAssign> for PyField {
             bail!(PyParseError::StmtAnnAssignParse(value.clone()));
         };
         let access = get_access_from_name(&name);
-        let default = match &value.value {
-            Some(v) => match v.borrow() {
-                ast::Expr::Constant(c) => match &c.value {
-                    ast::Constant::Str(s) => Some(s.to_string()),
-                    ast::Constant::Int(i) => Some(i.to_string()),
-                    ast::Constant::Bool(b) => Some(b.to_string()),
-                    ast::Constant::None => Some("None".to_string()),
-                    _ => None,
-                },
-                _ => bail!(PyParseError::StmtAnnAssignParse(value.clone())),
-            },
-            None => None,
+        let default = if value.value.is_some() {
+            parse_pyvalue(value.value.as_ref().unwrap())
+        } else {
+            None
         };
         Ok(Self {
             name,
@@ -359,7 +370,7 @@ async def _my_other_func(name: str, age: int = 18) -> str:
 
     #[test]
     fn test_parse_annotated_assignment() {
-        let stmt = "x: list[int]";
+        let stmt = "x: list[int] = [1, 2, 3]";
         match &ast::Suite::parse(stmt, ".").unwrap()[0] {
             ast::Stmt::AnnAssign(a) => {
                 let assignment = PyField::try_from(a).unwrap();
@@ -368,7 +379,7 @@ async def _my_other_func(name: str, age: int = 18) -> str:
                     PyField {
                         name: "x".to_string(),
                         pytype: Some("list[int]".to_string()),
-                        default: None,
+                        default: Some("[1, 2, 3]".to_string()),
                         access: AccessLevel::Public
                     }
                 );

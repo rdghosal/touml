@@ -17,8 +17,8 @@ def init_value_3() -> dict[str, int]:
 
 class StrClass(Base, StrMixin):
     value: str
-    some_other_values: list
-    yet_another_value: str
+    some_other_values: tuple[int, ...]
+    yet_another_value: set[int]
 
     def get_concatenated(self) -> str:
         return f"{self.value}{self.some_other_value}{self.yet_another_value}"
