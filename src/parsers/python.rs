@@ -7,6 +7,7 @@ use crate::prelude::*;
 use anyhow::bail;
 use rustpython_parser::{ast, Parse};
 use std::borrow::Borrow;
+use std::iter::zip;
 use std::{collections::HashSet, path::PathBuf};
 use thiserror::Error;
 
@@ -112,6 +113,21 @@ fn parse_pyvalue(expr: &ast::Expr) -> Option<String> {
                 .collect::<Vec<_>>();
             Some(format!("[{}]", tokens.join(", ")))
         }
+        ast::Expr::Dict(d) => {
+            let kv = zip(&d.keys, &d.values)
+                .filter_map(|(k, v)| {
+                    if k.is_some() {
+                        if let Some(k) = parse_pyvalue(k.as_ref().unwrap()) {
+                            let v = parse_pyvalue(&v);
+                            return Some((k, v));
+                        }
+                    }
+                    return None;
+                })
+                .map(|(k, v)| format!("{}: {}", k, v.unwrap_or_else(|| String::from("None"))))
+                .collect::<Vec<_>>();
+            Some(format!("{{{}}}", kv.join(", ")))
+        }
         _ => None,
     }
 }
@@ -165,6 +181,7 @@ impl TryFrom<&ast::StmtAnnAssign> for PyField {
                 let ast::Expr::Name(container_t) = s.value.borrow() else {
                     bail!(PyParseError::StmtAnnAssignParse(value.clone()));
                 };
+                // TODO: handle Expr::Tuple for e.g. dicts
                 let ast::Expr::Name(contained_t) = s.slice.borrow() else {
                     bail!(PyParseError::StmtAnnAssignParse(value.clone()));
                 };
@@ -369,7 +386,7 @@ async def _my_other_func(name: str, age: int = 18) -> str:
     }
 
     #[test]
-    fn test_parse_annotated_assignment() {
+    fn test_parse_annotated_list_assignment() {
         let stmt = "x: list[int] = [1, 2, 3]";
         match &ast::Suite::parse(stmt, ".").unwrap()[0] {
             ast::Stmt::AnnAssign(a) => {
@@ -380,6 +397,27 @@ async def _my_other_func(name: str, age: int = 18) -> str:
                         name: "x".to_string(),
                         pytype: Some("list[int]".to_string()),
                         default: Some("[1, 2, 3]".to_string()),
+                        access: AccessLevel::Public
+                    }
+                );
+            }
+            _ => panic!("failed to parse assignment"),
+        }
+    }
+
+    #[test]
+    fn test_parse_annotated_dict_assignment() {
+        let stmt = "x: dict = {'a': 1, 'b': 2, 'c': 3}";
+        match &ast::Suite::parse(stmt, ".").unwrap()[0] {
+            ast::Stmt::AnnAssign(a) => {
+                let assignment = PyField::try_from(a).unwrap();
+                assert_eq!(
+                    assignment,
+                    PyField {
+                        name: "x".to_string(),
+                        pytype: Some("dict".to_string()),
+                        // TODO: handle repr for str, i.e., include quotes around values
+                        default: Some("{a: 1, b: 2, c: 3}".to_string()),
                         access: AccessLevel::Public
                     }
                 );

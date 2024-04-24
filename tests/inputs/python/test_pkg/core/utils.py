@@ -32,3 +32,5 @@ def do_something() -> None:
 
     print(s.get_concatenated())
     print(i.do_something())
+
+    d: dict[str, typing.Any] = {1: {'2', '3'}, (1, 2): '3'}
