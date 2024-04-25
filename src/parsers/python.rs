@@ -99,7 +99,7 @@ pymethod_impl! {
 fn parse_pyvalue(expr: &ast::Expr) -> Option<String> {
     match expr {
         ast::Expr::Constant(c) => match &c.value {
-            ast::Constant::Str(s) => Some(format!("{:?}", s.to_string())),
+            ast::Constant::Str(s) => Some(format!("'{}'", s.to_string())),
             ast::Constant::Int(i) => Some(i.to_string()),
             ast::Constant::Bool(b) => Some(b.to_string()),
             ast::Constant::None => Some("None".to_string()),
@@ -416,7 +416,7 @@ async def _my_other_func(name: str, age: int = 18) -> str:
                     PyField {
                         name: "x".to_string(),
                         pytype: Some("dict".to_string()),
-                        default: Some("{\"a\": 1, \"b\": 2, \"c\": 3}".to_string()),
+                        default: Some("{'a': 1, 'b': 2, 'c': 3}".to_string()),
                         access: AccessLevel::Public
                     }
                 );
