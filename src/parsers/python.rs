@@ -178,18 +178,32 @@ impl TryFrom<&ast::StmtAnnAssign> for PyField {
         let pytype = match value.annotation.borrow() {
             ast::Expr::Name(n) => Some(n.id.to_string()),
             ast::Expr::Subscript(s) => {
-                let ast::Expr::Name(container_t) = s.value.borrow() else {
-                    bail!(PyParseError::StmtAnnAssignParse(value.clone()));
+                let t_outer = match s.value.borrow() {
+                    ast::Expr::Name(t_outer) => {
+                        t_outer.id.as_str()
+                    },
+                    _ => bail!(PyParseError::StmtAnnAssignParse(value.clone()))
                 };
-                // TODO: handle Expr::Tuple for e.g. dicts
-                let ast::Expr::Name(contained_t) = s.slice.borrow() else {
-                    bail!(PyParseError::StmtAnnAssignParse(value.clone()));
+                let t_inner = match s.slice.borrow() {
+                    ast::Expr::Name(n) => n.id.as_str().to_string(),
+                    // TODO: make recursive to handle nested tuples
+                    ast::Expr::Tuple(t) => {
+                        t.elts
+                            .iter()
+                            .filter_map(|e| {
+                                if let ast::Expr::Name(n) = e {
+                                    Some(n.id.as_str())
+                                } else {
+                                    // TODO: eprintln on exception
+                                    None
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    }
+                    _ => bail!(PyParseError::StmtAnnAssignParse(value.clone())),
                 };
-                Some(format!(
-                    "{}[{}]",
-                    container_t.id.as_str(),
-                    contained_t.id.as_str()
-                ))
+                Some(format!("{}[{}]", t_outer, t_inner))
             }
             _ => bail!(PyParseError::StmtAnnAssignParse(value.clone())),
         };
@@ -407,7 +421,7 @@ async def _my_other_func(name: str, age: int = 18) -> str:
 
     #[test]
     fn test_parse_annotated_dict_assignment() {
-        let stmt = "x: dict = {'a': 1, 'b': 2, 'c': 3}";
+        let stmt = "x: dict[str, int] = {'a': 1, 'b': 2, 'c': 3}";
         match &ast::Suite::parse(stmt, ".").unwrap()[0] {
             ast::Stmt::AnnAssign(a) => {
                 let assignment = PyField::try_from(a).unwrap();
@@ -415,7 +429,7 @@ async def _my_other_func(name: str, age: int = 18) -> str:
                     assignment,
                     PyField {
                         name: "x".to_string(),
-                        pytype: Some("dict".to_string()),
+                        pytype: Some("dict[str, int]".to_string()),
                         default: Some("{'a': 1, 'b': 2, 'c': 3}".to_string()),
                         access: AccessLevel::Public
                     }
