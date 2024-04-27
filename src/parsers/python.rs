@@ -31,6 +31,24 @@ pub struct PyClass {
     fields: HashSet<PyField>,
 }
 
+impl TryFrom<ast::StmtClassDef> for PyClass {
+    type Error = anyhow::Error;
+    fn try_from(value: ast::StmtClassDef) -> Result<PyClass> {
+        let name = get_class_name(&value);
+        let access = get_access_from_name(&name);
+        let parents = get_parent_class_names(&value);
+        let (fields, methods) = get_fields_and_methods(&value).unwrap(); // TODO: handle error
+        let result = PyClass {
+            name,
+            access,
+            parents,
+            fields,
+            methods,
+        };
+        Ok(result)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct PyField {
     name: String,
@@ -312,26 +330,17 @@ fn get_fields_and_methods(
 
 pub fn parse_module(contents: String, path: &str) -> Result<Vec<PyClass>> {
     let nodes = ast::Suite::parse(&contents, path);
-    let parsed = nodes?
-        .iter()
-        .filter_map(|n| match n {
-            ast::Stmt::ClassDef(cls) => Some(cls),
-            _ => None,
-        })
-        .map(|cls| {
-            let name = get_class_name(cls);
-            let access = get_access_from_name(&name);
-            let parents = get_parent_class_names(cls);
-            let (fields, methods) = get_fields_and_methods(cls).unwrap(); // TODO: handle error
-            PyClass {
-                name,
-                access,
-                parents,
-                fields,
-                methods,
+    let parsed = nodes
+        .into_iter()
+        .flatten()
+        .filter_map(|n| {
+            if let ast::Stmt::ClassDef(cls) = n {
+                Some(PyClass::try_from(cls))
+            } else {
+                None
             }
         })
-        .collect::<Vec<PyClass>>();
+        .collect::<Result<Vec<PyClass>>>()?;
     Ok(parsed)
 }
 
