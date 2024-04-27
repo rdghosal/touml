@@ -96,7 +96,7 @@ pymethod_impl! {
     ast::StmtAsyncFunctionDef
 }
 
-fn parse_pyvalue(expr: &ast::Expr) -> Option<String> {
+fn get_pyvalue(expr: &ast::Expr) -> Option<String> {
     match expr {
         ast::Expr::Constant(c) => match &c.value {
             ast::Constant::Str(s) => Some(format!("'{}'", s.to_string())),
@@ -105,11 +105,27 @@ fn parse_pyvalue(expr: &ast::Expr) -> Option<String> {
             ast::Constant::None => Some("None".to_string()),
             _ => None,
         },
-        ast::Expr::List(l) => {
-            let tokens = l
+        ast::Expr::Set(set) => {
+            let tokens = set
                 .elts
                 .iter()
-                .filter_map(|e| parse_pyvalue(e))
+                .filter_map(|e| get_pyvalue(e))
+                .collect::<Vec<_>>();
+            Some(format!("{{{}}}", tokens.join(", ")))
+        }
+        ast::Expr::Tuple(tuple) => {
+            let tokens = tuple
+                .elts
+                .iter()
+                .filter_map(|e| get_pyvalue(e))
+                .collect::<Vec<_>>();
+            Some(format!("({},)", tokens.join(", ")))
+        }
+        ast::Expr::List(li) => {
+            let tokens = li
+                .elts
+                .iter()
+                .filter_map(|e| get_pyvalue(e))
                 .collect::<Vec<_>>();
             Some(format!("[{}]", tokens.join(", ")))
         }
@@ -117,8 +133,8 @@ fn parse_pyvalue(expr: &ast::Expr) -> Option<String> {
             let kv = zip(&d.keys, &d.values)
                 .filter_map(|(k, v)| {
                     if k.is_some() {
-                        if let Some(k) = parse_pyvalue(k.as_ref().unwrap()) {
-                            let v = parse_pyvalue(&v);
+                        if let Some(k) = get_pyvalue(k.as_ref().unwrap()) {
+                            let v = get_pyvalue(&v);
                             return Some((k, v));
                         }
                     }
@@ -170,43 +186,51 @@ impl TryFrom<&ast::StmtAssign> for PyField {
     }
 }
 
+fn get_pytype(annotation: &ast::Expr) -> Result<Option<String>> {
+    let result = match annotation {
+        ast::Expr::Name(n) => Some(n.id.to_string()),
+        ast::Expr::Constant(c) => match c.value {
+            ast::Constant::Ellipsis => Some("...".to_string()),
+            _ => bail!(PyParseError::ExprType(annotation.clone())),
+        },
+        ast::Expr::Subscript(s) => {
+            let t_outer = match s.value.borrow() {
+                ast::Expr::Name(t_outer) => t_outer.id.as_str(),
+                _ => bail!(PyParseError::ExprType(annotation.clone())),
+            };
+            let t_inner = match s.slice.borrow() {
+                ast::Expr::Name(n) => n.id.as_str().to_string(),
+                ast::Expr::Tuple(t) => {
+                    let mapped = t.elts.iter().map(get_pytype).collect::<Result<Vec<_>>>();
+                    let mut to_concat = Vec::<String>::new();
+                    match mapped {
+                        Ok(types) => {
+                            for t in types {
+                                if t.is_none() {
+                                    bail!(PyParseError::ExprType(annotation.clone()))
+                                }
+                                to_concat.push(t.unwrap());
+                            }
+                        }
+                        _ => bail!(PyParseError::ExprType(annotation.clone())),
+                    }
+                    to_concat.join(", ")
+                }
+                _ => bail!(PyParseError::ExprType(annotation.clone())),
+            };
+            Some(format!("{}[{}]", t_outer, t_inner))
+        }
+        _ => bail!(PyParseError::ExprType(annotation.clone())),
+    };
+    Ok(result)
+}
+
 impl TryFrom<&ast::StmtAnnAssign> for PyField {
     type Error = anyhow::Error;
     fn try_from(value: &ast::StmtAnnAssign) -> Result<PyField> {
         let name: String;
         let ident = value.target.clone();
-        let pytype = match value.annotation.borrow() {
-            ast::Expr::Name(n) => Some(n.id.to_string()),
-            ast::Expr::Subscript(s) => {
-                let t_outer = match s.value.borrow() {
-                    ast::Expr::Name(t_outer) => {
-                        t_outer.id.as_str()
-                    },
-                    _ => bail!(PyParseError::StmtAnnAssignParse(value.clone()))
-                };
-                let t_inner = match s.slice.borrow() {
-                    ast::Expr::Name(n) => n.id.as_str().to_string(),
-                    // TODO: make recursive to handle nested tuples
-                    ast::Expr::Tuple(t) => {
-                        t.elts
-                            .iter()
-                            .filter_map(|e| {
-                                if let ast::Expr::Name(n) = e {
-                                    Some(n.id.as_str())
-                                } else {
-                                    // TODO: eprintln on exception
-                                    None
-                                }
-                            })
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    }
-                    _ => bail!(PyParseError::StmtAnnAssignParse(value.clone())),
-                };
-                Some(format!("{}[{}]", t_outer, t_inner))
-            }
-            _ => bail!(PyParseError::StmtAnnAssignParse(value.clone())),
-        };
+        let pytype = get_pytype(value.annotation.borrow())?;
         if let ast::Expr::Name(n) = *ident {
             name = n.id.to_string();
         } else {
@@ -214,7 +238,7 @@ impl TryFrom<&ast::StmtAnnAssign> for PyField {
         };
         let access = get_access_from_name(&name);
         let default = if value.value.is_some() {
-            parse_pyvalue(value.value.as_ref().unwrap())
+            get_pyvalue(value.value.as_ref().unwrap())
         } else {
             None
         };
@@ -421,7 +445,7 @@ async def _my_other_func(name: str, age: int = 18) -> str:
 
     #[test]
     fn test_parse_annotated_dict_assignment() {
-        let stmt = "x: dict[str, int] = {'a': 1, 'b': 2, 'c': 3}";
+        let stmt = "x: dict[str, tuple[int, ...]] = {'a': (1, 2), 'b': (2,), 'c': (3, 3, 3,)}";
         match &ast::Suite::parse(stmt, ".").unwrap()[0] {
             ast::Stmt::AnnAssign(a) => {
                 let assignment = PyField::try_from(a).unwrap();
@@ -429,8 +453,8 @@ async def _my_other_func(name: str, age: int = 18) -> str:
                     assignment,
                     PyField {
                         name: "x".to_string(),
-                        pytype: Some("dict[str, int]".to_string()),
-                        default: Some("{'a': 1, 'b': 2, 'c': 3}".to_string()),
+                        pytype: Some("dict[str, tuple[int, ...]]".to_string()),
+                        default: Some("{'a': (1, 2,), 'b': (2,), 'c': (3, 3, 3,)}".to_string()),
                         access: AccessLevel::Public
                     }
                 );
