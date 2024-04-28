@@ -1,14 +1,12 @@
 #![allow(dead_code)]
 
-use crate::generators::mermaid::MerimaidMapper;
-use crate::generators::*;
 use crate::prelude::*;
 
 use anyhow::bail;
 use rustpython_parser::{ast, Parse};
 use std::borrow::Borrow;
-use std::iter::zip;
 use std::collections::HashSet;
+use std::iter::zip;
 use thiserror::Error;
 
 use rayon::prelude::*;
@@ -43,27 +41,11 @@ enum PyParseError {
 }
 
 pub struct PyClass {
-    name: String,
-    access: AccessLevel,
-    parents: HashSet<String>,
-    methods: HashSet<PyMethod>,
-    fields: HashSet<PyField>,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-struct PyField {
-    name: String,
-    pytype: Option<String>,
-    default: Option<String>,
-    access: AccessLevel,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
-struct PyMethod {
-    name: String,
-    access: AccessLevel,
-    args: Vec<String>,
-    returns: Option<String>,
+    pub name: String,
+    pub access: Accessibility,
+    pub parents: HashSet<String>,
+    pub methods: HashSet<Method>,
+    pub fields: HashSet<Field>,
 }
 
 impl PyClass {
@@ -95,22 +77,22 @@ impl PyClass {
 
     fn get_fields_and_methods(
         cls: &ast::StmtClassDef,
-    ) -> Result<(HashSet<PyField>, HashSet<PyMethod>)> {
+    ) -> Result<(HashSet<Field>, HashSet<Method>)> {
         let mut fields = HashSet::new();
         let mut methods = HashSet::new();
         for attr in cls.body.iter() {
             match attr {
                 ast::Stmt::AnnAssign(a) => {
-                    fields.insert(PyField::try_from(a)?);
+                    fields.insert(Field::try_from(a)?);
                 }
                 ast::Stmt::Assign(a) => {
-                    fields.insert(PyField::try_from(a)?);
+                    fields.insert(Field::try_from(a)?);
                 }
                 ast::Stmt::AsyncFunctionDef(func) => {
-                    methods.insert(PyMethod::from(func));
+                    methods.insert(Method::from(func));
                 }
                 ast::Stmt::FunctionDef(func) => {
-                    methods.insert(PyMethod::from(func));
+                    methods.insert(Method::from(func));
                 }
                 _ => todo!(),
             }
@@ -137,9 +119,9 @@ impl TryFrom<ast::StmtClassDef> for PyClass {
     }
 }
 
-impl TryFrom<&ast::StmtAssign> for PyField {
+impl TryFrom<&ast::StmtAssign> for Field {
     type Error = anyhow::Error;
-    fn try_from(value: &ast::StmtAssign) -> Result<PyField> {
+    fn try_from(value: &ast::StmtAssign) -> Result<Field> {
         let ident = value.targets.iter().next();
         let name = match ident {
             Some(expr) => {
@@ -175,9 +157,9 @@ impl TryFrom<&ast::StmtAssign> for PyField {
     }
 }
 
-impl TryFrom<&ast::StmtAnnAssign> for PyField {
+impl TryFrom<&ast::StmtAnnAssign> for Field {
     type Error = anyhow::Error;
-    fn try_from(value: &ast::StmtAnnAssign) -> Result<PyField> {
+    fn try_from(value: &ast::StmtAnnAssign) -> Result<Field> {
         let name: String;
         let ident = value.target.clone();
         let pytype = get_pytype(value.annotation.borrow())?;
@@ -201,10 +183,10 @@ impl TryFrom<&ast::StmtAnnAssign> for PyField {
     }
 }
 
-macro_rules! pymethod_impl {
+macro_rules! Method_impl {
     ( $($s: path)+) => {
         $(
-            impl From<&$s> for PyMethod {
+            impl From<&$s> for Method {
                 fn from(value: &$s) -> Self {
                     let name = value.name.to_string();
                     let access = get_access_from_name(&name);
@@ -245,16 +227,16 @@ macro_rules! pymethod_impl {
     };
 }
 
-pymethod_impl! {
+Method_impl! {
     ast::StmtFunctionDef
     ast::StmtAsyncFunctionDef
 }
 
-fn get_access_from_name(name: &str) -> AccessLevel {
+fn get_access_from_name(name: &str) -> Accessibility {
     if name.starts_with("_") {
-        AccessLevel::Private
+        Accessibility::Private
     } else {
-        AccessLevel::Public
+        Accessibility::Public
     }
 }
 
@@ -310,7 +292,6 @@ fn get_pyvalue(expr: &ast::Expr) -> Option<String> {
     }
 }
 
-
 fn get_pytype(annotation: &ast::Expr) -> Result<Option<String>> {
     let result = match annotation {
         ast::Expr::Name(n) => Some(n.id.to_string()),
@@ -362,26 +343,26 @@ def my_func(name: str):
 "#;
         match &ast::Suite::parse(func, ".").unwrap()[0] {
             ast::Stmt::FunctionDef(f) => {
-                let method = PyMethod::from(f);
+                let method = Method::from(f);
                 assert_eq!(
                     method,
-                    PyMethod {
+                    Method {
                         name: "my_func".to_string(),
                         args: vec!["name".to_string()],
                         returns: None,
-                        access: AccessLevel::Public
+                        access: Accessibility::Public
                     }
                 );
             }
             ast::Stmt::AsyncFunctionDef(f) => {
-                let method = PyMethod::from(f);
+                let method = Method::from(f);
                 assert_eq!(
                     method,
-                    PyMethod {
+                    Method {
                         name: "my_other_func".to_string(),
                         args: vec!["name".to_string(), "age".to_string()],
                         returns: Some("str".to_string()),
-                        access: AccessLevel::Private
+                        access: Accessibility::Private
                     }
                 );
             }
@@ -397,14 +378,14 @@ async def _my_other_func(name: str, age: int = 18) -> str:
 "#;
         match &ast::Suite::parse(func, ".").unwrap()[0] {
             ast::Stmt::AsyncFunctionDef(f) => {
-                let method = PyMethod::from(f);
+                let method = Method::from(f);
                 assert_eq!(
                     method,
-                    PyMethod {
+                    Method {
                         name: "_my_other_func".to_string(),
                         args: vec!["name".to_string(), "age".to_string()],
                         returns: Some("str".to_string()),
-                        access: AccessLevel::Private
+                        access: Accessibility::Private
                     }
                 );
             }
@@ -417,14 +398,14 @@ async def _my_other_func(name: str, age: int = 18) -> str:
         let stmt = "x = 42";
         match &ast::Suite::parse(stmt, ".").unwrap()[0] {
             ast::Stmt::Assign(a) => {
-                let assignment = PyField::try_from(a).unwrap();
+                let assignment = Field::try_from(a).unwrap();
                 assert_eq!(
                     assignment,
-                    PyField {
+                    Field {
                         name: "x".to_string(),
                         pytype: Some("int".to_string()),
                         default: Some("42".to_string()),
-                        access: AccessLevel::Public
+                        access: Accessibility::Public
                     }
                 );
             }
@@ -437,14 +418,14 @@ async def _my_other_func(name: str, age: int = 18) -> str:
         let stmt = "x: list[int] = [1, 2, 3]";
         match &ast::Suite::parse(stmt, ".").unwrap()[0] {
             ast::Stmt::AnnAssign(a) => {
-                let assignment = PyField::try_from(a).unwrap();
+                let assignment = Field::try_from(a).unwrap();
                 assert_eq!(
                     assignment,
-                    PyField {
+                    Field {
                         name: "x".to_string(),
                         pytype: Some("list[int]".to_string()),
                         default: Some("[1, 2, 3]".to_string()),
-                        access: AccessLevel::Public
+                        access: Accessibility::Public
                     }
                 );
             }
@@ -457,14 +438,14 @@ async def _my_other_func(name: str, age: int = 18) -> str:
         let stmt = "x: dict[str, tuple[int, ...]] = {'a': (1, 2), 'b': (2,), 'c': (3, 3, 3,)}";
         match &ast::Suite::parse(stmt, ".").unwrap()[0] {
             ast::Stmt::AnnAssign(a) => {
-                let assignment = PyField::try_from(a).unwrap();
+                let assignment = Field::try_from(a).unwrap();
                 assert_eq!(
                     assignment,
-                    PyField {
+                    Field {
                         name: "x".to_string(),
                         pytype: Some("dict[str, tuple[int, ...]]".to_string()),
                         default: Some("{'a': (1, 2,), 'b': (2,), 'c': (3, 3, 3,)}".to_string()),
-                        access: AccessLevel::Public
+                        access: Accessibility::Public
                     }
                 );
             }

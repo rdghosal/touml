@@ -1,10 +1,10 @@
-pub(crate) mod parsers;
 pub(crate) mod generators;
+pub(crate) mod parsers;
 pub(crate) mod prelude;
 
+use anyhow::Result;
 use std::collections::HashSet;
 use std::path::PathBuf;
-use anyhow::Result;
 
 // FIXME: make pub(crate)
 pub fn get_file_paths(root: PathBuf, target_exts: &HashSet<&'static str>) -> Result<Vec<PathBuf>> {

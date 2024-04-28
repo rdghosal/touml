@@ -11,7 +11,7 @@ fn main() -> Result<()> {
     println!("Hello world!");
     let mut exts = HashSet::new();
     exts.insert("py");
-    let paths = get_file_paths(PathBuf::from("./tests/inputs/python"),&exts)?;
+    let paths = get_file_paths(PathBuf::from("./tests/inputs/python"), &exts)?;
     let ast = paths
         .iter()
         .filter_map(|p| match fs::read_to_string(p) {
