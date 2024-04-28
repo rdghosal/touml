@@ -8,8 +8,24 @@ use anyhow::bail;
 use rustpython_parser::{ast, Parse};
 use std::borrow::Borrow;
 use std::iter::zip;
-use std::{collections::HashSet, path::PathBuf};
+use std::collections::HashSet;
 use thiserror::Error;
+
+pub fn parse_module(contents: String, path: &str) -> Result<Vec<PyClass>> {
+    let nodes = ast::Suite::parse(&contents, path);
+    let parsed = nodes
+        .into_iter()
+        .flatten()
+        .filter_map(|n| {
+            if let ast::Stmt::ClassDef(cls) = n {
+                Some(PyClass::try_from(cls))
+            } else {
+                None
+            }
+        })
+        .collect::<Result<Vec<PyClass>>>()?;
+    Ok(parsed)
+}
 
 #[derive(Error, Debug)]
 enum PyParseError {
@@ -31,24 +47,6 @@ pub struct PyClass {
     fields: HashSet<PyField>,
 }
 
-impl TryFrom<ast::StmtClassDef> for PyClass {
-    type Error = anyhow::Error;
-    fn try_from(value: ast::StmtClassDef) -> Result<PyClass> {
-        let name = get_class_name(&value);
-        let access = get_access_from_name(&name);
-        let parents = get_parent_class_names(&value);
-        let (fields, methods) = get_fields_and_methods(&value).unwrap(); // TODO: handle error
-        let result = PyClass {
-            name,
-            access,
-            parents,
-            fields,
-            methods,
-        };
-        Ok(result)
-    }
-}
-
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct PyField {
     name: String,
@@ -63,6 +61,141 @@ struct PyMethod {
     access: AccessLevel,
     args: Vec<String>,
     returns: Option<String>,
+}
+
+impl PyClass {
+    fn get_class_name(cls: &ast::StmtClassDef) -> String {
+        cls.name.to_string()
+    }
+
+    fn get_parent_class_names(cls: &ast::StmtClassDef) -> HashSet<String> {
+        let mut parents = HashSet::new();
+        for parent in cls.bases.iter() {
+            match parent {
+                ast::Expr::Name(name) => {
+                    parents.insert(name.id.to_string());
+                }
+                ast::Expr::Attribute(attr) => {
+                    if let ast::Expr::Name(name) = attr.value.as_ref() {
+                        parents.insert(name.id.to_string());
+                    } else {
+                        eprintln!("Failed to extract base class name from attribute.");
+                    }
+                }
+                _ => {
+                    dbg!("failed to parse {:?}", parent);
+                }
+            }
+        }
+        parents
+    }
+
+    fn get_fields_and_methods(
+        cls: &ast::StmtClassDef,
+    ) -> Result<(HashSet<PyField>, HashSet<PyMethod>)> {
+        let mut fields = HashSet::new();
+        let mut methods = HashSet::new();
+        for attr in cls.body.iter() {
+            match attr {
+                ast::Stmt::AnnAssign(a) => {
+                    fields.insert(PyField::try_from(a)?);
+                }
+                ast::Stmt::Assign(a) => {
+                    fields.insert(PyField::try_from(a)?);
+                }
+                ast::Stmt::AsyncFunctionDef(func) => {
+                    methods.insert(PyMethod::from(func));
+                }
+                ast::Stmt::FunctionDef(func) => {
+                    methods.insert(PyMethod::from(func));
+                }
+                _ => todo!(),
+            }
+        }
+        Ok((fields, methods))
+    }
+}
+
+impl TryFrom<ast::StmtClassDef> for PyClass {
+    type Error = anyhow::Error;
+    fn try_from(value: ast::StmtClassDef) -> Result<Self> {
+        let name = Self::get_class_name(&value);
+        let access = get_access_from_name(&name);
+        let parents = Self::get_parent_class_names(&value);
+        let (fields, methods) = Self::get_fields_and_methods(&value)?;
+        let result = PyClass {
+            name,
+            access,
+            parents,
+            fields,
+            methods,
+        };
+        Ok(result)
+    }
+}
+
+impl TryFrom<&ast::StmtAssign> for PyField {
+    type Error = anyhow::Error;
+    fn try_from(value: &ast::StmtAssign) -> Result<PyField> {
+        let ident = value.targets.iter().next();
+        let name = match ident {
+            Some(expr) => {
+                if let ast::Expr::Name(n) = expr {
+                    Some(n.id.to_string())
+                } else {
+                    None
+                }
+            }
+            None => None,
+        };
+        let Some(name) = name else {
+            bail!(PyParseError::StmtAssignParse(value.clone()));
+        };
+        let access = get_access_from_name(&name);
+        let (pytype, default) = match value.value.borrow() {
+            // TODO: handle container types
+            ast::Expr::Constant(c) => match &c.value {
+                ast::Constant::Str(s) => (Some("str".to_string()), Some(s.to_string())),
+                ast::Constant::Int(i) => (Some("int".to_string()), Some(i.to_string())),
+                ast::Constant::Bool(b) => (Some("bool".to_string()), Some(b.to_string())),
+                ast::Constant::None => (Some("None".to_string()), None),
+                _ => bail!(PyParseError::StmtAssignParse(value.clone())),
+            },
+            _ => (None, None),
+        };
+        Ok(Self {
+            name,
+            access,
+            pytype,
+            default,
+        })
+    }
+}
+
+impl TryFrom<&ast::StmtAnnAssign> for PyField {
+    type Error = anyhow::Error;
+    fn try_from(value: &ast::StmtAnnAssign) -> Result<PyField> {
+        let name: String;
+        let ident = value.target.clone();
+        let pytype = get_pytype(value.annotation.borrow())?;
+        if let ast::Expr::Name(n) = *ident {
+            name = n.id.to_string();
+        } else {
+            bail!(PyParseError::StmtAnnAssignParse(value.clone()));
+        };
+        let access = get_access_from_name(&name);
+        let default = if value.value.is_some() {
+            get_pyvalue(value.value.as_ref().unwrap())
+        } else {
+            None
+        };
+        Ok(Self {
+            name,
+            access,
+            pytype,
+            default,
+        })
+    }
 }
 
 macro_rules! pymethod_impl {
@@ -112,6 +245,14 @@ macro_rules! pymethod_impl {
 pymethod_impl! {
     ast::StmtFunctionDef
     ast::StmtAsyncFunctionDef
+}
+
+fn get_access_from_name(name: &str) -> AccessLevel {
+    if name.starts_with("_") {
+        AccessLevel::Private
+    } else {
+        AccessLevel::Public
+    }
 }
 
 fn get_pyvalue(expr: &ast::Expr) -> Option<String> {
@@ -166,43 +307,6 @@ fn get_pyvalue(expr: &ast::Expr) -> Option<String> {
     }
 }
 
-impl TryFrom<&ast::StmtAssign> for PyField {
-    type Error = anyhow::Error;
-    fn try_from(value: &ast::StmtAssign) -> Result<PyField> {
-        let ident = value.targets.iter().next();
-        let name = match ident {
-            Some(expr) => {
-                if let ast::Expr::Name(n) = expr {
-                    Some(n.id.to_string())
-                } else {
-                    None
-                }
-            }
-            None => None,
-        };
-        let Some(name) = name else {
-            bail!(PyParseError::StmtAssignParse(value.clone()));
-        };
-        let access = get_access_from_name(&name);
-        let (pytype, default) = match value.value.borrow() {
-            // TODO: handle container types
-            ast::Expr::Constant(c) => match &c.value {
-                ast::Constant::Str(s) => (Some("str".to_string()), Some(s.to_string())),
-                ast::Constant::Int(i) => (Some("int".to_string()), Some(i.to_string())),
-                ast::Constant::Bool(b) => (Some("bool".to_string()), Some(b.to_string())),
-                ast::Constant::None => (Some("None".to_string()), None),
-                _ => bail!(PyParseError::StmtAssignParse(value.clone())),
-            },
-            _ => (None, None),
-        };
-        Ok(Self {
-            name,
-            access,
-            pytype,
-            default,
-        })
-    }
-}
 
 fn get_pytype(annotation: &ast::Expr) -> Result<Option<String>> {
     let result = match annotation {
@@ -241,113 +345,6 @@ fn get_pytype(annotation: &ast::Expr) -> Result<Option<String>> {
         _ => bail!(PyParseError::ExprType(annotation.clone())),
     };
     Ok(result)
-}
-
-impl TryFrom<&ast::StmtAnnAssign> for PyField {
-    type Error = anyhow::Error;
-    fn try_from(value: &ast::StmtAnnAssign) -> Result<PyField> {
-        let name: String;
-        let ident = value.target.clone();
-        let pytype = get_pytype(value.annotation.borrow())?;
-        if let ast::Expr::Name(n) = *ident {
-            name = n.id.to_string();
-        } else {
-            bail!(PyParseError::StmtAnnAssignParse(value.clone()));
-        };
-        let access = get_access_from_name(&name);
-        let default = if value.value.is_some() {
-            get_pyvalue(value.value.as_ref().unwrap())
-        } else {
-            None
-        };
-        Ok(Self {
-            name,
-            access,
-            pytype,
-            default,
-        })
-    }
-}
-
-fn get_access_from_name(name: &str) -> AccessLevel {
-    if name.starts_with("_") {
-        AccessLevel::Private
-    } else {
-        AccessLevel::Public
-    }
-}
-
-fn get_class_name(cls: &ast::StmtClassDef) -> String {
-    cls.name.to_string()
-}
-
-fn get_parent_class_names(cls: &ast::StmtClassDef) -> HashSet<String> {
-    let mut parents = HashSet::new();
-    for parent in cls.bases.iter() {
-        match parent {
-            ast::Expr::Name(name) => {
-                parents.insert(name.id.to_string());
-            }
-            ast::Expr::Attribute(attr) => {
-                if let ast::Expr::Name(name) = attr.value.as_ref() {
-                    parents.insert(name.id.to_string());
-                } else {
-                    eprintln!("Failed to extract base class name from attribute.");
-                }
-            }
-            _ => {
-                dbg!("failed to parse {:?}", parent);
-            }
-        }
-    }
-    parents
-}
-
-fn get_fields_and_methods(
-    cls: &ast::StmtClassDef,
-) -> Result<(HashSet<PyField>, HashSet<PyMethod>)> {
-    let mut fields = HashSet::new();
-    let mut methods = HashSet::new();
-    for attr in cls.body.iter() {
-        match attr {
-            ast::Stmt::AnnAssign(a) => {
-                fields.insert(PyField::try_from(a)?);
-            }
-            ast::Stmt::Assign(a) => {
-                fields.insert(PyField::try_from(a)?);
-            }
-            ast::Stmt::AsyncFunctionDef(func) => {
-                methods.insert(PyMethod::from(func));
-            }
-            ast::Stmt::FunctionDef(func) => {
-                methods.insert(PyMethod::from(func));
-            }
-            _ => todo!(),
-        }
-    }
-    Ok((fields, methods))
-}
-
-pub fn parse_module(contents: String, path: &str) -> Result<Vec<PyClass>> {
-    let nodes = ast::Suite::parse(&contents, path);
-    let parsed = nodes
-        .into_iter()
-        .flatten()
-        .filter_map(|n| {
-            if let ast::Stmt::ClassDef(cls) = n {
-                Some(PyClass::try_from(cls))
-            } else {
-                None
-            }
-        })
-        .collect::<Result<Vec<PyClass>>>()?;
-    Ok(parsed)
-}
-
-impl MerimaidMapper for PyClass {
-    fn to_mermaid(self) -> mermaid::MermaidClass {
-        todo!()
-    }
 }
 
 #[cfg(test)]
