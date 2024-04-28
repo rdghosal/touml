@@ -11,11 +11,14 @@ use std::iter::zip;
 use std::collections::HashSet;
 use thiserror::Error;
 
+use rayon::prelude::*;
+
 pub fn parse_module(contents: String, path: &str) -> Result<Vec<PyClass>> {
     let nodes = ast::Suite::parse(&contents, path);
     let parsed = nodes
         .into_iter()
         .flatten()
+        .par_bridge()
         .filter_map(|n| {
             if let ast::Stmt::ClassDef(cls) = n {
                 Some(PyClass::try_from(cls))
