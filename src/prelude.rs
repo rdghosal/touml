@@ -9,7 +9,7 @@ pub enum Accessibility {
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Field {
     pub name: String,
-    pub pytype: Option<String>,
+    pub dtype: Option<String>,
     pub default: Option<String>,
     pub access: Accessibility,
 }

@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use crate::prelude::*;
+use rayon::prelude::*;
 
 use anyhow::bail;
 use rustpython_parser::{ast, Parse};
@@ -8,8 +9,6 @@ use std::borrow::Borrow;
 use std::collections::HashSet;
 use std::iter::zip;
 use thiserror::Error;
-
-use rayon::prelude::*;
 
 pub fn parse_module(contents: String, path: &str) -> Result<Vec<PyClass>> {
     let nodes = ast::Suite::parse(&contents, path);
@@ -89,10 +88,10 @@ impl PyClass {
                     fields.insert(Field::try_from(a)?);
                 }
                 ast::Stmt::AsyncFunctionDef(func) => {
-                    methods.insert(Method::from(func));
+                    methods.insert(Method::try_from(func)?);
                 }
                 ast::Stmt::FunctionDef(func) => {
-                    methods.insert(Method::from(func));
+                    methods.insert(Method::try_from(func)?);
                 }
                 _ => todo!(),
             }
@@ -137,7 +136,7 @@ impl TryFrom<&ast::StmtAssign> for Field {
             bail!(PyParseError::StmtAssignParse(value.clone()));
         };
         let access = get_access_from_name(&name);
-        let (pytype, default) = match value.value.borrow() {
+        let (dtype, default) = match value.value.borrow() {
             // TODO: handle container types
             ast::Expr::Constant(c) => match &c.value {
                 ast::Constant::Str(s) => (Some("str".to_string()), Some(s.to_string())),
@@ -151,7 +150,7 @@ impl TryFrom<&ast::StmtAssign> for Field {
         Ok(Self {
             name,
             access,
-            pytype,
+            dtype,
             default,
         })
     }
@@ -162,7 +161,7 @@ impl TryFrom<&ast::StmtAnnAssign> for Field {
     fn try_from(value: &ast::StmtAnnAssign) -> Result<Field> {
         let name: String;
         let ident = value.target.clone();
-        let pytype = get_pytype(value.annotation.borrow())?;
+        let dtype = get_pytype(value.annotation.borrow())?;
         if let ast::Expr::Name(n) = *ident {
             name = n.id.to_string();
         } else {
@@ -177,17 +176,18 @@ impl TryFrom<&ast::StmtAnnAssign> for Field {
         Ok(Self {
             name,
             access,
-            pytype,
+            dtype,
             default,
         })
     }
 }
 
-macro_rules! Method_impl {
+macro_rules! pymethod_impl {
     ( $($s: path)+) => {
         $(
-            impl From<&$s> for Method {
-                fn from(value: &$s) -> Self {
+            impl TryFrom<&$s> for Method {
+                type Error = anyhow::Error;
+                fn try_from(value: &$s) -> Result<Self> {
                     let name = value.name.to_string();
                     let access = get_access_from_name(&name);
                     let args = vec![
@@ -200,34 +200,24 @@ macro_rules! Method_impl {
                     .map(|a| a.def.arg.to_string())
                     .collect();
                     let returns = if value.returns.is_some() {
-                        match *value.returns.clone().unwrap() {
-                            ast::Expr::Constant(c) => {
-                                Some(c.value.as_str().unwrap_or(&String::new()).to_owned())
-                            }
-                            ast::Expr::Attribute(a) => Some(a.attr.to_string()),
-                            ast::Expr::Name(n) => Some(n.id.to_string()),
-                            _ => {
-                                dbg!("failed to parse {:?}", &value.returns);
-                                None
-                            }
-                        }
+                        get_pytype(&*value.returns.as_ref().unwrap())?
                     } else {
                         None
                     };
 
-                    Self {
+                    Ok(Self {
                         name,
                         access,
                         args,
                         returns,
-                    }
+                    })
                 }
             }
         )?
     };
 }
 
-Method_impl! {
+pymethod_impl! {
     ast::StmtFunctionDef
     ast::StmtAsyncFunctionDef
 }
@@ -343,7 +333,7 @@ def my_func(name: str):
 "#;
         match &ast::Suite::parse(func, ".").unwrap()[0] {
             ast::Stmt::FunctionDef(f) => {
-                let method = Method::from(f);
+                let method = Method::try_from(f).unwrap();
                 assert_eq!(
                     method,
                     Method {
@@ -355,7 +345,7 @@ def my_func(name: str):
                 );
             }
             ast::Stmt::AsyncFunctionDef(f) => {
-                let method = Method::from(f);
+                let method = Method::try_from(f).unwrap();
                 assert_eq!(
                     method,
                     Method {
@@ -378,7 +368,7 @@ async def _my_other_func(name: str, age: int = 18) -> str:
 "#;
         match &ast::Suite::parse(func, ".").unwrap()[0] {
             ast::Stmt::AsyncFunctionDef(f) => {
-                let method = Method::from(f);
+                let method = Method::try_from(f).unwrap();
                 assert_eq!(
                     method,
                     Method {
@@ -403,7 +393,7 @@ async def _my_other_func(name: str, age: int = 18) -> str:
                     assignment,
                     Field {
                         name: "x".to_string(),
-                        pytype: Some("int".to_string()),
+                        dtype: Some("int".to_string()),
                         default: Some("42".to_string()),
                         access: Accessibility::Public
                     }
@@ -423,7 +413,7 @@ async def _my_other_func(name: str, age: int = 18) -> str:
                     assignment,
                     Field {
                         name: "x".to_string(),
-                        pytype: Some("list[int]".to_string()),
+                        dtype: Some("list[int]".to_string()),
                         default: Some("[1, 2, 3]".to_string()),
                         access: Accessibility::Public
                     }
@@ -443,7 +433,7 @@ async def _my_other_func(name: str, age: int = 18) -> str:
                     assignment,
                     Field {
                         name: "x".to_string(),
-                        pytype: Some("dict[str, tuple[int, ...]]".to_string()),
+                        dtype: Some("dict[str, tuple[int, ...]]".to_string()),
                         default: Some("{'a': (1, 2,), 'b': (2,), 'c': (3, 3, 3,)}".to_string()),
                         access: Accessibility::Public
                     }
