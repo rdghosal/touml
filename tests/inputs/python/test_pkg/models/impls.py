@@ -7,7 +7,15 @@ from pydantic import field_validator, Field
 from .base import Base, StrMixin, IntMixin
 
 
-def init_value_3() -> dict[str, int]:
+def init_value_3(*arg, b: int = 2, **kwargs) -> dict[str, int]:
+    return {
+        "a": 1,
+        "b": 2,
+        "c": 3,
+    }
+
+
+def random_func(a, /, b=2, *, c) -> dict[str, int]:
     return {
         "a": 1,
         "b": 2,

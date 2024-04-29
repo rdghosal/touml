@@ -18,6 +18,6 @@ pub struct Field {
 pub struct Method {
     pub name: String,
     pub access: Accessibility,
-    pub args: Vec<String>,
+    pub args: Vec<Field>,
     pub returns: Option<String>,
 }

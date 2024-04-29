@@ -182,6 +182,26 @@ impl TryFrom<&ast::StmtAnnAssign> for Field {
     }
 }
 
+impl TryFrom<&ast::ArgWithDefault> for Field {
+    type Error = anyhow::Error;
+    fn try_from(value: &ast::ArgWithDefault) -> Result<Field> {
+        let name = value.def.arg.to_string();
+        let dtype = get_pytype(&*value.def.annotation.as_ref().unwrap())?;
+        let access = get_access_from_name(&name);
+        let default = if value.default.is_some() {
+            get_pyvalue(&*value.default.as_ref().unwrap())
+        } else {
+            None
+        };
+        Ok(Self {
+            name,
+            access,
+            dtype,
+            default,
+        })
+    }
+}
+
 macro_rules! pymethod_impl {
     ( $($s: path)+) => {
         $(
@@ -197,14 +217,13 @@ macro_rules! pymethod_impl {
                     ]
                     .iter()
                     .flatten()
-                    .map(|a| a.def.arg.to_string())
-                    .collect();
+                    .map(Field::try_from)
+                    .collect::<Result<Vec<Field>>>()?;
                     let returns = if value.returns.is_some() {
                         get_pytype(&*value.returns.as_ref().unwrap())?
                     } else {
                         None
                     };
-
                     Ok(Self {
                         name,
                         access,
@@ -338,7 +357,12 @@ def my_func(name: str):
                     method,
                     Method {
                         name: "my_func".to_string(),
-                        args: vec!["name".to_string()],
+                        args: vec![Field {
+                            name: "name".to_string(),
+                            default: None,
+                            access: Accessibility::Public,
+                            dtype: Some("str".to_string()),
+                        }],
                         returns: None,
                         access: Accessibility::Public
                     }
@@ -350,7 +374,20 @@ def my_func(name: str):
                     method,
                     Method {
                         name: "my_other_func".to_string(),
-                        args: vec!["name".to_string(), "age".to_string()],
+                        args: vec![
+                        Field {
+                            name: "name".to_string(),
+                            default: None,
+                            access: Accessibility::Public,
+                            dtype: Some("str".to_string()),
+                        },
+                        Field {
+                            name: "age".to_string(),
+                            default: Some("18".to_string()),
+                            access: Accessibility::Public,
+                            dtype: Some("int".to_string()),
+                        }
+                        ],
                         returns: Some("str".to_string()),
                         access: Accessibility::Private
                     }
@@ -373,7 +410,20 @@ async def _my_other_func(name: str, age: int = 18) -> str:
                     method,
                     Method {
                         name: "_my_other_func".to_string(),
-                        args: vec!["name".to_string(), "age".to_string()],
+                        args: vec![
+                        Field {
+                            name: "name".to_string(),
+                            default: None,
+                            access: Accessibility::Public,
+                            dtype: Some("str".to_string()),
+                        },
+                        Field {
+                            name: "age".to_string(),
+                            default: Some("18".to_string()),
+                            access: Accessibility::Public,
+                            dtype: Some("int".to_string()),
+                        }
+                        ],
                         returns: Some("str".to_string()),
                         access: Accessibility::Private
                     }
