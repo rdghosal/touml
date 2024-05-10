@@ -1,12 +1,12 @@
 pub(crate) use anyhow::Result;
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Accessibility {
     Public,
     Private,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Field {
     pub name: String,
     pub dtype: Option<String>,
@@ -14,7 +14,7 @@ pub struct Field {
     pub access: Accessibility,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Method {
     pub name: String,
     pub access: Accessibility,

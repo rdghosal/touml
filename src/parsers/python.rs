@@ -6,7 +6,7 @@ use rayon::prelude::*;
 use anyhow::bail;
 use rustpython_parser::{ast, Parse};
 use std::borrow::Borrow;
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use std::iter::zip;
 use thiserror::Error;
 
@@ -42,9 +42,11 @@ enum PyParseError {
 pub struct PyClass {
     pub name: String,
     pub access: Accessibility,
-    pub parents: HashSet<String>,
-    pub methods: HashSet<Method>,
-    pub fields: HashSet<Field>,
+    // NOTE: With BTreeSet and the ordering inherent therein, we cannot
+    // preserve MRO when parsing parents of a Python class.
+    pub parents: BTreeSet<String>,
+    pub methods: BTreeSet<Method>,
+    pub fields: BTreeSet<Field>,
 }
 
 impl PyClass {
@@ -52,8 +54,8 @@ impl PyClass {
         cls.name.to_string()
     }
 
-    fn get_parent_class_names(cls: &ast::StmtClassDef) -> HashSet<String> {
-        let mut parents = HashSet::new();
+    fn get_parent_class_names(cls: &ast::StmtClassDef) -> BTreeSet<String> {
+        let mut parents = BTreeSet::new();
         for parent in cls.bases.iter() {
             match parent {
                 ast::Expr::Name(name) => {
@@ -76,9 +78,9 @@ impl PyClass {
 
     fn get_fields_and_methods(
         cls: &ast::StmtClassDef,
-    ) -> Result<(HashSet<Field>, HashSet<Method>)> {
-        let mut fields = HashSet::new();
-        let mut methods = HashSet::new();
+    ) -> Result<(BTreeSet<Field>, BTreeSet<Method>)> {
+        let mut fields = BTreeSet::new();
+        let mut methods = BTreeSet::new();
         for attr in cls.body.iter() {
             match attr {
                 ast::Stmt::AnnAssign(a) => {
@@ -91,9 +93,13 @@ impl PyClass {
                     methods.insert(Method::try_from(func)?);
                 }
                 ast::Stmt::FunctionDef(func) => {
-                    methods.insert(Method::try_from(func)?);
+                    let method = Method::try_from(func)?;
+                    if method.name == "__init__" {
+                        todo!("parse __init__");
+                    }
+                    methods.insert(method);
                 }
-                _ => todo!(),
+                _ => continue,
             }
         }
         Ok((fields, methods))
@@ -375,18 +381,18 @@ def my_func(name: str):
                     Method {
                         name: "my_other_func".to_string(),
                         args: vec![
-                        Field {
-                            name: "name".to_string(),
-                            default: None,
-                            access: Accessibility::Public,
-                            dtype: Some("str".to_string()),
-                        },
-                        Field {
-                            name: "age".to_string(),
-                            default: Some("18".to_string()),
-                            access: Accessibility::Public,
-                            dtype: Some("int".to_string()),
-                        }
+                            Field {
+                                name: "name".to_string(),
+                                default: None,
+                                access: Accessibility::Public,
+                                dtype: Some("str".to_string()),
+                            },
+                            Field {
+                                name: "age".to_string(),
+                                default: Some("18".to_string()),
+                                access: Accessibility::Public,
+                                dtype: Some("int".to_string()),
+                            }
                         ],
                         returns: Some("str".to_string()),
                         access: Accessibility::Private
@@ -411,18 +417,18 @@ async def _my_other_func(name: str, age: int = 18) -> str:
                     Method {
                         name: "_my_other_func".to_string(),
                         args: vec![
-                        Field {
-                            name: "name".to_string(),
-                            default: None,
-                            access: Accessibility::Public,
-                            dtype: Some("str".to_string()),
-                        },
-                        Field {
-                            name: "age".to_string(),
-                            default: Some("18".to_string()),
-                            access: Accessibility::Public,
-                            dtype: Some("int".to_string()),
-                        }
+                            Field {
+                                name: "name".to_string(),
+                                default: None,
+                                access: Accessibility::Public,
+                                dtype: Some("str".to_string()),
+                            },
+                            Field {
+                                name: "age".to_string(),
+                                default: Some("18".to_string()),
+                                access: Accessibility::Public,
+                                dtype: Some("int".to_string()),
+                            }
                         ],
                         returns: Some("str".to_string()),
                         access: Accessibility::Private

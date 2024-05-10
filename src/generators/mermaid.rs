@@ -1,16 +1,16 @@
 use crate::parsers::*;
 use crate::prelude::*;
 
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use std::fmt::Display;
 
 static INDENT: &str = "    ";
 
 pub struct MermaidClass {
     name: String,
-    parents: HashSet<String>,
-    methods: HashSet<Method>,
-    fields: HashSet<Field>,
+    parents: BTreeSet<String>,
+    methods: BTreeSet<Method>,
+    fields: BTreeSet<Field>,
 }
 
 pub trait MermaidMappable {
@@ -90,15 +90,15 @@ impl MermaidMappable for PyClass {
             .methods
             .into_iter()
             .filter(|m| !(m.name.starts_with("__") & m.name.ends_with("__")))
-            .collect::<HashSet<Method>>();
+            .collect::<BTreeSet<Method>>();
         let fields = self
             .fields
             .into_iter()
             .filter(|f| !(f.name.starts_with("__") & f.name.ends_with("__")))
-            .collect::<HashSet<Field>>();
+            .collect::<BTreeSet<Field>>();
         return MermaidClass {
             name: self.name,
-            parents: self.parents,
+            parents: BTreeSet::from(self.parents),
             methods,
             fields,
         };
@@ -111,4 +111,38 @@ pub fn make_class_diagram(nodes: Vec<impl MermaidMappable>) -> String {
         result.push(node.as_mermaid().to_string());
     }
     result.join("")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mermaid_display() {
+        let cls = PyClass {
+            name: "TestClass".to_string(),
+            access: Accessibility::Public,
+            parents: BTreeSet::from([
+                "ParentTestClass".to_string(),
+                "AnotherTestClass".to_string(),
+            ]),
+            fields: BTreeSet::from([Field {
+                access: Accessibility::Public,
+                name: "id".to_string(),
+                dtype: Some("int".to_string()),
+                default: None,
+            }]),
+            methods: BTreeSet::new(),
+        };
+        assert_eq!(
+            format!("{}", cls.as_mermaid()),
+            concat!(
+                "    class TestClass{\r\n",
+                "        +id int\r\n",
+                "    }\r\n",
+                "    `AnotherTestClass` <|-- TestClass\r\n",
+                "    `ParentTestClass` <|-- TestClass",
+            )
+        )
+    }
 }
