@@ -76,11 +76,54 @@ impl PyClass {
         parents
     }
 
+    fn get_fields_from_init(func: &ast::StmtFunctionDef) -> Vec<Field> {
+        func.body
+            .iter()
+            .map(|n| {
+                let mut fields = Vec::new();
+                let mut value = None;
+                match n {
+                    ast::Stmt::Assign(a) => {
+                        let mut is_self = false;
+                        for target in a.targets.iter() {
+                            if let ast::Expr::Attribute(attr) = target {
+                                if let ast::Expr::Name(assignee) = attr.value.borrow() {
+                                    if assignee.id.to_string() == "self".to_string() {
+                                        is_self = true;
+                                    }
+                                }
+                                if is_self {
+                                    fields.push(attr.attr.to_string());
+                                }
+                            }
+                        }
+                        value = get_pyvalue(a.value.borrow());
+                    }
+                    ast::Stmt::AnnAssign(a) => {
+                        todo!()
+                    }
+                    _ => todo!(),
+                }
+                fields
+                    .into_iter()
+                    .map(|f| Field {
+                        access: get_access_from_name(&f),
+                        name: f,
+                        dtype: None,
+                        default: value.clone(),
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .flatten()
+            .collect()
+    }
+
     fn get_fields_and_methods(
         cls: &ast::StmtClassDef,
     ) -> Result<(BTreeSet<Field>, BTreeSet<Method>)> {
         let mut fields = BTreeSet::new();
         let mut methods = BTreeSet::new();
+        let mut is_std_cls = false; // TODO: use to discriminate class variables, etc.
         for attr in cls.body.iter() {
             match attr {
                 ast::Stmt::AnnAssign(a) => {
@@ -95,6 +138,7 @@ impl PyClass {
                 ast::Stmt::FunctionDef(func) => {
                     let method = Method::try_from(func)?;
                     if method.name == "__init__" {
+                        is_std_cls = true;
                         todo!("parse __init__");
                     }
                     methods.insert(method);
