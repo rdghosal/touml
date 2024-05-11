@@ -6,6 +6,12 @@ use std::fmt::Display;
 
 static INDENT: &str = "    ";
 
+#[cfg(windows)]
+static EOL: &str = "\r\n";
+
+#[cfg(not(windows))]
+static EOL: &str = "\n";
+
 pub struct MermaidClass {
     name: String,
     parents: BTreeSet<String>,
@@ -69,16 +75,15 @@ impl MermaidClass {
 impl Display for MermaidClass {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut result = vec![];
-        let inherits = " <|-- ";
         // Define class as well as the fields and methods therein.
         let class_name = format!("{INDENT}class {}{{", self.name);
         result.push(class_name);
         result.extend(self.make_class_fields());
         result.extend(self.make_class_methods());
         for parent in self.parents.iter() {
-            result.push(format!("{INDENT}`{parent}`{inherits}{}", self.name));
+            result.push(format!("{INDENT}`{parent}` <|-- {}", self.name));
         }
-        write!(f, "{}", result.join("\r\n"))
+        write!(f, "{}", result.join(EOL))
     }
 }
 
@@ -110,7 +115,7 @@ pub fn make_class_diagram(nodes: Vec<impl MermaidMappable>) -> String {
     for node in nodes.into_iter() {
         result.push(node.as_mermaid().to_string());
     }
-    result.join("")
+    result.join(EOL)
 }
 
 #[cfg(test)]
@@ -136,13 +141,14 @@ mod tests {
         };
         assert_eq!(
             format!("{}", cls.as_mermaid()),
-            concat!(
-                "    class TestClass{\r\n",
-                "        +id int\r\n",
-                "    }\r\n",
-                "    `AnotherTestClass` <|-- TestClass\r\n",
+            vec![
+                "    class TestClass{",
+                "        +id int",
+                "    }",
+                "    `AnotherTestClass` <|-- TestClass",
                 "    `ParentTestClass` <|-- TestClass",
-            )
+            ]
+            .join(EOL)
         )
     }
 }
