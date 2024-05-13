@@ -76,46 +76,55 @@ impl PyClass {
         parents
     }
 
-    fn get_fields_from_init(func: &ast::StmtFunctionDef) -> Vec<Field> {
-        func.body
-            .iter()
-            .map(|n| {
-                let mut fields = Vec::new();
-                let mut value = None;
-                match n {
-                    ast::Stmt::Assign(a) => {
+    fn get_fields_from_init(func: &ast::StmtFunctionDef) -> Result<Vec<Field>> {
+        let mut fields = Vec::new();
+        for node in func.body.iter() {
+            let mut field_names = Vec::new();
+            let mut dtype = None;
+            match node {
+                ast::Stmt::Assign(assignment) => {
+                    for target in assignment.targets.iter() {
                         let mut is_self = false;
-                        for target in a.targets.iter() {
-                            if let ast::Expr::Attribute(attr) = target {
-                                if let ast::Expr::Name(assignee) = attr.value.borrow() {
-                                    if assignee.id.to_string() == "self".to_string() {
-                                        is_self = true;
-                                    }
-                                }
-                                if is_self {
-                                    fields.push(attr.attr.to_string());
+                        if let ast::Expr::Attribute(attr) = target {
+                            if let ast::Expr::Name(assignee) = attr.value.borrow() {
+                                if assignee.id.to_string() == "self".to_string() {
+                                    is_self = true;
                                 }
                             }
+                            if is_self {
+                                field_names.push(attr.attr.to_string());
+                            }
                         }
-                        value = get_pyvalue(a.value.borrow());
                     }
-                    ast::Stmt::AnnAssign(a) => {
-                        todo!()
-                    }
-                    _ => todo!(),
                 }
-                fields
-                    .into_iter()
-                    .map(|f| Field {
-                        access: get_access_from_name(&f),
-                        name: f,
-                        dtype: None,
-                        default: value.clone(),
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .flatten()
-            .collect()
+                ast::Stmt::AnnAssign(assignment) => {
+                    let mut is_self = false;
+                    if let ast::Expr::Attribute(attr) = assignment.target.borrow() {
+                        if let ast::Expr::Name(assignee) = attr.value.borrow() {
+                            if assignee.id.to_string() == "self".to_string() {
+                                is_self = true;
+                            }
+                        }
+                        if is_self {
+                            field_names.push(attr.attr.to_string());
+                        }
+                    }
+                    dtype = get_pytype(assignment.annotation.borrow())?;
+                }
+                _ => todo!(),
+            }
+
+            for field_name in field_names {
+                fields.push(Field {
+                    access: get_access_from_name(&field_name),
+                    name: field_name,
+                    dtype: dtype.clone(),
+                    default: None,
+                });
+            }
+        }
+
+        Ok(fields)
     }
 
     fn get_fields_and_methods(
@@ -139,7 +148,7 @@ impl PyClass {
                     let method = Method::try_from(func)?;
                     if method.name == "__init__" {
                         is_std_cls = true;
-                        todo!("parse __init__");
+                        fields.extend(Self::get_fields_from_init(func)?);
                     }
                     methods.insert(method);
                 }
@@ -540,6 +549,39 @@ async def _my_other_func(name: str, age: int = 18) -> str:
                 );
             }
             _ => panic!("failed to parse assignment"),
+        }
+    }
+
+    #[test]
+    fn test_parse_fields_from_init() {
+        let stmt = concat!(
+            "class MyClass:\n",
+            "   def __init__(self, name, id) -> None:\n",
+            "       self.id = id\n",
+            "       self.name = name\n",
+        );
+        let cls = &ast::Suite::parse(stmt, ".").unwrap()[0];
+        if let ast::Stmt::ClassDef(c) = cls {
+            if let ast::Stmt::FunctionDef(ref f) = c.body[0] {
+                let result = PyClass::get_fields_from_init(f);
+                assert_eq!(
+                    result.unwrap(),
+                    vec![
+                        Field {
+                            name: "id".to_string(),
+                            dtype: None,
+                            default: None,
+                            access: Accessibility::Public
+                        },
+                        Field {
+                            name: "name".to_string(),
+                            dtype: None,
+                            default: None,
+                            access: Accessibility::Public
+                        },
+                    ]
+                );
+            }
         }
     }
 }
