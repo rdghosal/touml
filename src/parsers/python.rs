@@ -403,168 +403,148 @@ fn get_pytype(annotation: &ast::Expr) -> Result<Option<String>> {
 mod test {
     use super::*;
 
+    fn get_stmt(py: &str) -> ast::Stmt {
+        ast::Suite::parse(py, ".").unwrap().swap_remove(0)
+    }
+
     #[test]
     fn test_sync_function_parse() {
-        let func = r#"
-def my_func(name: str):
-    return f"Hello {name}!"
-"#;
-        match &ast::Suite::parse(func, ".").unwrap()[0] {
-            ast::Stmt::FunctionDef(f) => {
-                let method = Method::try_from(f).unwrap();
-                assert_eq!(
-                    method,
-                    Method {
-                        name: "my_func".to_string(),
-                        args: vec![Field {
-                            name: "name".to_string(),
-                            default: None,
-                            access: Accessibility::Public,
-                            dtype: Some("str".to_string()),
-                        }],
-                        returns: None,
-                        access: Accessibility::Public
-                    }
-                );
-            }
-            ast::Stmt::AsyncFunctionDef(f) => {
-                let method = Method::try_from(f).unwrap();
-                assert_eq!(
-                    method,
-                    Method {
-                        name: "my_other_func".to_string(),
-                        args: vec![
-                            Field {
-                                name: "name".to_string(),
-                                default: None,
-                                access: Accessibility::Public,
-                                dtype: Some("str".to_string()),
-                            },
-                            Field {
-                                name: "age".to_string(),
-                                default: Some("18".to_string()),
-                                access: Accessibility::Public,
-                                dtype: Some("int".to_string()),
-                            }
-                        ],
-                        returns: Some("str".to_string()),
-                        access: Accessibility::Private
-                    }
-                );
-            }
-            _ => panic!("failed to parse function"),
-        };
+        #[rustfmt::skip]
+        let py = vec![
+            "def my_func(name: str):",
+            r#"    return f'Hello {name}!'"#,
+        ].join(&"\n");
+
+        if let ast::Stmt::FunctionDef(ref f) = get_stmt(&py) {
+            let method = Method::try_from(f).unwrap();
+            assert_eq!(
+                method,
+                Method {
+                    name: "my_func".to_string(),
+                    args: vec![Field {
+                        name: "name".to_string(),
+                        default: None,
+                        access: Accessibility::Public,
+                        dtype: Some("str".to_string()),
+                    }],
+                    returns: None,
+                    access: Accessibility::Public
+                }
+            );
+        } else {
+            panic!("failed to parse function");
+        }
     }
 
     #[test]
     fn test_async_function_parse() {
-        let func = r#"
-async def _my_other_func(name: str, age: int = 18) -> str:
-    return f"Hello, I'm {name} and I'm {int} years-old!"
-"#;
-        match &ast::Suite::parse(func, ".").unwrap()[0] {
-            ast::Stmt::AsyncFunctionDef(f) => {
-                let method = Method::try_from(f).unwrap();
-                assert_eq!(
-                    method,
-                    Method {
-                        name: "_my_other_func".to_string(),
-                        args: vec![
-                            Field {
-                                name: "name".to_string(),
-                                default: None,
-                                access: Accessibility::Public,
-                                dtype: Some("str".to_string()),
-                            },
-                            Field {
-                                name: "age".to_string(),
-                                default: Some("18".to_string()),
-                                access: Accessibility::Public,
-                                dtype: Some("int".to_string()),
-                            }
-                        ],
-                        returns: Some("str".to_string()),
-                        access: Accessibility::Private
-                    }
-                );
-            }
-            _ => panic!("failed to parse function"),
+        #[rustfmt::skip]
+        let py = vec![
+            "async def _my_other_func(name: str, age: int = 18) -> str:",
+            r#"    return f"Hello, I'm {name} and I'm {int} years-old!""#,
+        ].join(&"\n");
+
+        if let ast::Stmt::AsyncFunctionDef(ref f) = get_stmt(&py) {
+            let method = Method::try_from(f).unwrap();
+            assert_eq!(
+                method,
+                Method {
+                    name: "_my_other_func".to_string(),
+                    args: vec![
+                        Field {
+                            name: "name".to_string(),
+                            default: None,
+                            access: Accessibility::Public,
+                            dtype: Some("str".to_string()),
+                        },
+                        Field {
+                            name: "age".to_string(),
+                            default: Some("18".to_string()),
+                            access: Accessibility::Public,
+                            dtype: Some("int".to_string()),
+                        }
+                    ],
+                    returns: Some("str".to_string()),
+                    access: Accessibility::Private
+                }
+            )
+        } else {
+            panic!("failed to parse function");
         }
     }
 
     #[test]
     fn test_parse_assignment() {
-        let stmt = "x = 42";
-        match &ast::Suite::parse(stmt, ".").unwrap()[0] {
-            ast::Stmt::Assign(a) => {
-                let assignment = Field::try_from(a).unwrap();
-                assert_eq!(
-                    assignment,
-                    Field {
-                        name: "x".to_string(),
-                        dtype: Some("int".to_string()),
-                        default: Some("42".to_string()),
-                        access: Accessibility::Public
-                    }
-                );
-            }
-            _ => panic!("failed to parse assignment"),
+        let py = "x = 42";
+        if let ast::Stmt::Assign(ref a) = get_stmt(&py) {
+            let assignment = Field::try_from(a).unwrap();
+            assert_eq!(
+                assignment,
+                Field {
+                    name: "x".to_string(),
+                    dtype: Some("int".to_string()),
+                    default: Some("42".to_string()),
+                    access: Accessibility::Public
+                }
+            );
+        } else {
+            panic!("failed to parse assignment");
         }
     }
 
     #[test]
     fn test_parse_annotated_list_assignment() {
-        let stmt = "x: list[int] = [1, 2, 3]";
-        match &ast::Suite::parse(stmt, ".").unwrap()[0] {
-            ast::Stmt::AnnAssign(a) => {
-                let assignment = Field::try_from(a).unwrap();
-                assert_eq!(
-                    assignment,
-                    Field {
-                        name: "x".to_string(),
-                        dtype: Some("list[int]".to_string()),
-                        default: Some("[1, 2, 3]".to_string()),
-                        access: Accessibility::Public
-                    }
-                );
-            }
-            _ => panic!("failed to parse assignment"),
+        let py = "x: list[int] = [1, 2, 3]";
+        if let ast::Stmt::AnnAssign(ref a) = get_stmt(&py) {
+            let assignment = Field::try_from(a).unwrap();
+            assert_eq!(
+                assignment,
+                Field {
+                    name: "x".to_string(),
+                    dtype: Some("list[int]".to_string()),
+                    default: Some("[1, 2, 3]".to_string()),
+                    access: Accessibility::Public
+                }
+            );
+        } else {
+            panic!("failed to parse assignment");
         }
     }
 
     #[test]
     fn test_parse_annotated_dict_assignment() {
-        let stmt = "x: dict[str, tuple[int, ...]] = {'a': (1, 2), 'b': (2,), 'c': (3, 3, 3,)}";
-        match &ast::Suite::parse(stmt, ".").unwrap()[0] {
-            ast::Stmt::AnnAssign(a) => {
-                let assignment = Field::try_from(a).unwrap();
-                assert_eq!(
-                    assignment,
-                    Field {
-                        name: "x".to_string(),
-                        dtype: Some("dict[str, tuple[int, ...]]".to_string()),
-                        default: Some("{'a': (1, 2,), 'b': (2,), 'c': (3, 3, 3,)}".to_string()),
-                        access: Accessibility::Public
-                    }
-                );
-            }
-            _ => panic!("failed to parse assignment"),
+        let py = "x: dict[str, tuple[int, ...]] = {'a': (1, 2), 'b': (2,), 'c': (3, 3, 3,)}";
+        if let ast::Stmt::AnnAssign(ref a) = get_stmt(&py) {
+            let assignment = Field::try_from(a).unwrap();
+            assert_eq!(
+                assignment,
+                Field {
+                    name: "x".to_string(),
+                    dtype: Some("dict[str, tuple[int, ...]]".to_string()),
+                    default: Some("{'a': (1, 2,), 'b': (2,), 'c': (3, 3, 3,)}".to_string()),
+                    access: Accessibility::Public
+                }
+            );
+        } else {
+            panic!("failed to parse assignment");
         }
     }
 
     #[test]
     fn test_parse_fields_from_init() {
-        let stmt = concat!(
-            "class MyClass:\n",
-            "   def __init__(self, name, id) -> None:\n",
-            "       self.id = id\n",
-            "       self.name = name\n",
-        );
-        let cls = &ast::Suite::parse(stmt, ".").unwrap()[0];
-        if let ast::Stmt::ClassDef(c) = cls {
+        #[rustfmt::skip]
+        let py = vec![
+            "class MyClass:",
+            "   def __init__(self, name, id) -> None:",
+            "       self.id = id",
+            "       self.name = name",
+        ]
+        .join(&"\n");
+
+        if let ast::Stmt::ClassDef(ref c) = get_stmt(&py) {
             if let ast::Stmt::FunctionDef(ref f) = c.body[0] {
                 let result = PyClass::get_fields_from_init(f);
-                assert_eq!(
+                return assert_eq!(
                     result.unwrap(),
                     vec![
                         Field {
@@ -583,5 +563,6 @@ async def _my_other_func(name: str, age: int = 18) -> str:
                 );
             }
         }
+        panic!("failed to parse class");
     }
 }
