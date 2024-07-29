@@ -1,6 +1,10 @@
 pub(crate) mod generators;
-pub(crate) mod parsers;
 pub(crate) mod prelude;
+
+mod errors;
+mod parser;
+mod compiler;
+mod _ast;
 
 use anyhow::Result;
 use std::collections::HashSet;

@@ -1,4 +1,4 @@
-use crate::parsers::*;
+use crate::parser::*;
 use crate::prelude::*;
 
 use std::collections::BTreeSet;
@@ -27,9 +27,9 @@ impl MermaidClass {
     fn make_class_methods(&self) -> Vec<String> {
         let mut result = Vec::with_capacity(self.methods.len());
         for method in &self.methods {
-            let access_modifier = match method.access {
-                Accessibility::Public => '+',
-                Accessibility::Private => '-',
+            let access_modifier = match method.is_public() {
+                true => '+',
+                false => '-',
             };
             let mut method_str = format!("{INDENT}{INDENT}{access_modifier}{}(", method.name);
             let mut args: Vec<String> = vec![];
@@ -87,7 +87,7 @@ impl Display for MermaidClass {
     }
 }
 
-impl MermaidMappable for PyClass {
+impl MermaidMappable for PyClassInfo {
     fn as_mermaid(self) -> MermaidClass {
         // Remove dunders.
         // TODO: make opinionation here configurable
@@ -124,15 +124,13 @@ mod tests {
 
     #[test]
     fn test_mermaid_display() {
-        let cls = PyClass {
+        let cls = PyClassInfo {
             name: "TestClass".to_string(),
-            access: Accessibility::Public,
             parents: BTreeSet::from([
                 "ParentTestClass".to_string(),
                 "AnotherTestClass".to_string(),
             ]),
             fields: BTreeSet::from([Field {
-                access: Accessibility::Public,
                 name: "id".to_string(),
                 dtype: Some("int".to_string()),
                 default: None,
