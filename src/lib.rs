@@ -1,31 +1,30 @@
-pub(crate) mod generators;
 pub(crate) mod prelude;
 
+mod _ast;
+mod compiler;
 mod errors;
 mod parser;
-mod compiler;
-mod _ast;
 
 use anyhow::Result;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-// FIXME: make pub(crate)
-pub fn get_file_paths(root: PathBuf, target_exts: &HashSet<&'static str>) -> Result<Vec<PathBuf>> {
+pub fn get_file_paths(
+    root: PathBuf,
+    target_exts: &HashSet<&'static str>,
+) -> Result<Vec<PathBuf>> {
     let mut result = Vec::<PathBuf>::new();
     if root.is_dir() {
-        for entry in root.read_dir()? {
-            if let Ok(e) = entry {
-                let path = e.path();
-                if path.is_dir() {
-                    result.append(&mut get_file_paths(path, target_exts)?);
-                } else if let Some(ext) = path.extension() {
-                    match ext.to_str() {
-                        Some(e) if target_exts.contains(e) => {
-                            result.push(path);
-                        }
-                        _ => (),
+        for entry in root.read_dir()?.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                result.append(&mut get_file_paths(path, target_exts)?);
+            } else if let Some(ext) = path.extension() {
+                match ext.to_str() {
+                    Some(e) if target_exts.contains(e) => {
+                        result.push(path);
                     }
+                    _ => (),
                 }
             }
         }
