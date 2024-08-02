@@ -1,5 +1,5 @@
 use crate::errors::ParseError;
-use crate::parser::ParseResult;
+use crate::python::ParseResult;
 use crate::prelude::*;
 
 use core::iter::zip;
