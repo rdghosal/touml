@@ -114,7 +114,10 @@ impl MermaidMappable for PyClassInfo {
     }
 }
 
-pub fn make_class_diagram(nodes: Vec<impl MermaidMappable>) -> String {
+pub fn make_class_diagram<T>(nodes: Vec<T>) -> String
+where
+    T: MermaidMappable,
+{
     let mut result = vec![String::from("classDiagram")];
     for node in nodes.into_iter() {
         result.push(node.to_mermaid().print());
