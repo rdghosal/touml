@@ -1,0 +1,29 @@
+[build-system]
+requires = ["maturin>=1.4,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "touml"
+dynamic = ["version"]
+requires-python = ">=3.8"
+authors = [{name = "Rahul D. Ghosal", email = "rdghosal@proton.me"}]
+maintainers = [{name = "Rahul D. Ghosal", email = "rdghosal@proton.me"}]
+description = "Tool that creates a UML class diagram from classes in a Python module or subpackage."
+# readme = "README.md"
+license = {text = "MIT License"}
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+keywords = ["rust", "pyo3", "rustpython", "cli"]
+
+[project.urls]
+repository = "https://github.com/rdghosal/touml"
+
+[tool.maturin]
+bindings = "bin"
+manifest-path = "Cargo.toml"
+module-name = "touml._toml"
+python-source = "python"
+strip = true

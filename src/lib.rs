@@ -1,34 +1,17 @@
-pub(crate) mod generators;
-pub(crate) mod parsers;
 pub(crate) mod prelude;
 
-use anyhow::Result;
-use std::collections::HashSet;
-use std::path::PathBuf;
+mod _ast;
+mod errors;
+mod mermaid;
+mod python;
 
-// FIXME: make pub(crate)
-pub fn get_file_paths(root: PathBuf, target_exts: &HashSet<&'static str>) -> Result<Vec<PathBuf>> {
-    let mut result = Vec::<PathBuf>::new();
-    if root.is_dir() {
-        for entry in root.read_dir()? {
-            if let Ok(e) = entry {
-                let path = e.path();
-                if path.is_dir() {
-                    result.append(&mut get_file_paths(path, target_exts)?);
-                } else if let Some(ext) = path.extension() {
-                    match ext.to_str() {
-                        Some(e) if target_exts.contains(e) => {
-                            result.push(path);
-                        }
-                        _ => (),
-                    }
-                }
-            }
-        }
-    }
-    Ok(result)
-}
+use mermaid::MermaidMappable;
+use prelude::*;
 
-pub fn python_to_mermaid(path: &'static str) -> Result<()> {
-    todo!()
+pub fn python_to_mermaid(src: String) -> Result<String, Box<dyn std::error::Error>> {
+    let classes = python::PyClassInfo::from_source(&src)?;
+    let mapped = classes
+        .map(|c| c.map(|c| c.to_mermaid().print()))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(mapped.join(&format!("{EOL}{EOL}")))
 }

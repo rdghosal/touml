@@ -8,7 +8,7 @@ from ..models import StrClass, IntClass
 
 class ClassicClass:
     A_CLS_VAR = 0
-    ANOTHER_CLS_VAR: ClassVar[list[dict[str, Any]]] = [
+    ANOTHER_CLS_VAR = [  # FIXME: Generics are not working here...
         {
             "a_key": 1,
             "a_nested_key": {
