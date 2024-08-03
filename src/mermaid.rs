@@ -1,13 +1,7 @@
-use crate::python::*;
 use crate::prelude::*;
+use crate::python::*;
 
 use std::collections::BTreeSet;
-
-#[cfg(windows)]
-static EOL: &str = "\r\n";
-
-#[cfg(not(windows))]
-static EOL: &str = "\n";
 
 static INDENT: &str = "    ";
 
@@ -23,7 +17,7 @@ pub struct MermaidClass {
 }
 
 impl MermaidClass {
-    fn print(&self) -> String {
+    pub fn print(&self) -> String {
         let mut result = vec![];
 
         // Define class as well as the fields and methods therein.
@@ -114,17 +108,19 @@ impl MermaidMappable for PyClassInfo {
     }
 }
 
-pub fn make_class_diagram<T>(nodes: Vec<T>) -> String
-where
-    T: MermaidMappable,
-{
-    let mut result = vec![String::from("classDiagram")];
-    for node in nodes.into_iter() {
-        result.push(node.to_mermaid().print());
-    }
-    result.join(EOL)
-}
-
+//pub fn make_class_diagram<T>(nodes: impl Iterator<Item = T>) -> String
+//where
+//    T: MermaidMappable,
+//{
+//    std::iter::once(String::from("classDiagram"))
+//        .chain(nodes.map(|node| node.to_mermaid().print()))
+//        .chain(std::iter::once(EOL.to_string()))
+//        .collect::<Vec<_>>()
+//        .join("\n")
+//}
+//
+//
+//
 #[cfg(test)]
 mod tests {
     use super::*;

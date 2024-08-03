@@ -1,3 +1,9 @@
+#[cfg(windows)]
+pub static EOL: &str = "\r\n";
+
+#[cfg(not(windows))]
+pub static EOL: &str = "\n";
+
 pub trait Accessible {
     fn is_public(&self) -> bool;
 }

@@ -3,11 +3,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ParseError {
-    #[error("found unexpected statement of type {0:?}")]
-    UnexpectedStmtType(ast::Stmt),
-
-    #[error("found unexpected expression of type {0:?}")]
-    UnexpectedExprType(ast::Expr),
+    #[error("failed to parse Python AST from source")]
+    AstParse,
 
     #[error("unable to parse expression {0:?}")]
     ExprParse(ast::Expr),
@@ -20,5 +17,11 @@ pub enum ParseError {
 
     #[error("unable to parse class name from class definition {0:?}")]
     ClassNameParse(ast::StmtClassDef),
+
+    #[error("found unexpected statement of type {0:?}")]
+    UnexpectedStmtType(ast::Stmt),
+
+    #[error("found unexpected expression of type {0:?}")]
+    UnexpectedExprType(ast::Expr),
 
 }

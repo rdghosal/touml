@@ -2,7 +2,7 @@ use crate::_ast::PyExpr;
 use crate::errors;
 use crate::prelude::*;
 
-use rustpython_parser::ast;
+use rustpython_parser::{ast, Parse};
 use std::collections::BTreeSet;
 
 pub type ParseResult<T> = core::result::Result<T, errors::ParseError>;
@@ -19,6 +19,17 @@ pub struct PyClassInfo {
 }
 
 impl PyClassInfo {
+    pub fn from_source(src: &str) -> Result<impl Iterator<Item = Result<Self>>> {
+        let parsed = ast::Suite::parse(src, "path").map_err(|_| errors::ParseError::AstParse)?;
+
+        let mapped = parsed.into_iter().filter_map(|node| match node {
+            ast::Stmt::ClassDef(stmt) => Some(PyClassInfo::try_from(stmt)),
+            _ => None,
+        });
+
+        Ok(mapped)
+    }
+
     fn get_class_name(cls: &ast::StmtClassDef) -> String {
         cls.name.to_string()
     }
@@ -28,13 +39,7 @@ impl PyClassInfo {
             .iter()
             .map(|base| match base {
                 ast::Expr::Name(name) => Ok(name.id.to_string()),
-                ast::Expr::Attribute(attr) => {
-                    if let ast::Expr::Name(name) = attr.value.as_ref() {
-                        Ok(name.id.to_string())
-                    } else {
-                        Err(errors::ParseError::ClassNameParse(cls.clone()))
-                    }
-                }
+                ast::Expr::Attribute(attr) => Ok(attr.attr.to_string()),
                 _ => Err(errors::ParseError::ExprParse(base.clone())),
             })
             .collect::<Result<_>>()

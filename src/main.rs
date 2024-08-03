@@ -1,8 +1,7 @@
 use rayon::prelude::*;
-use rustpython_parser::{ast, Parse};
-
-use std::{fs, io};
 use std::path::PathBuf;
+use std::{fs, io};
+use touml::python_to_mermaid;
 
 static EXTENSIONS: [&str; 1] = ["py"];
 
@@ -26,9 +25,9 @@ fn get_file_paths(root: PathBuf) -> io::Result<Vec<PathBuf>> {
     Ok(result)
 }
 
-fn main() -> io::Result<()> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let paths = get_file_paths(PathBuf::from("./tests/inputs/python"))?;
-    let ast = paths
+    let diagram = paths
         .iter()
         .filter_map(|p| match fs::read_to_string(p) {
             Ok(c) => Some(c),
@@ -37,12 +36,13 @@ fn main() -> io::Result<()> {
                 None
             }
         })
-        .par_bridge()
-        .map(|c| ast::Suite::parse(&c, "path").unwrap())
-        .collect::<Vec<_>>();
+        .map(python_to_mermaid)
+        .collect::<Result<Vec<_>, _>>()?
+        .join("");
 
-    println!("Result: {:#?}", ast);
+    //println!("Result: {:#?}", ast);
     // dbg!("{#?}", env::consts::OS);
     // Command::new("open").arg("src/index.html").spawn().unwrap();
+    println!("{}", diagram);
     Ok(())
 }
