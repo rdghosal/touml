@@ -1,13 +1,12 @@
-use anyhow::Result;
 use rayon::prelude::*;
 use rustpython_parser::{ast, Parse};
 
-use std::fs;
+use std::{fs, io};
 use std::path::PathBuf;
 
 static EXTENSIONS: [&str; 1] = ["py"];
 
-fn get_file_paths(root: PathBuf) -> Result<Vec<PathBuf>> {
+fn get_file_paths(root: PathBuf) -> io::Result<Vec<PathBuf>> {
     let mut result = Vec::<PathBuf>::new();
     if root.is_dir() {
         for entry in root.read_dir()?.flatten() {
@@ -27,7 +26,7 @@ fn get_file_paths(root: PathBuf) -> Result<Vec<PathBuf>> {
     Ok(result)
 }
 
-fn main() -> Result<()> {
+fn main() -> io::Result<()> {
     let paths = get_file_paths(PathBuf::from("./tests/inputs/python"))?;
     let ast = paths
         .iter()

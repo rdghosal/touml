@@ -521,7 +521,6 @@ dependencies = [
 name = "touml"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "rayon",
  "rustpython-parser",
  "thiserror",

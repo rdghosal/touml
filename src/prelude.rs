@@ -1,5 +1,3 @@
-//pub(crate) use anyhow::Result;
-
 pub trait Accessible {
     fn is_public(&self) -> bool;
 }
