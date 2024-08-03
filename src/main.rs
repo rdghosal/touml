@@ -1,4 +1,4 @@
-use rayon::prelude::*;
+// use rayon::prelude::*;
 use std::path::PathBuf;
 use std::{fs, io};
 use touml::python_to_mermaid;
@@ -38,7 +38,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .map(python_to_mermaid)
         .collect::<Result<Vec<_>, _>>()?
-        .join("");
+        .join("\n\n") // FIXME
+        .trim_end()
+        .to_string();
 
     //println!("Result: {:#?}", ast);
     // dbg!("{#?}", env::consts::OS);

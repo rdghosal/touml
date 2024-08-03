@@ -39,7 +39,10 @@ impl PyClassInfo {
             .iter()
             .map(|base| match base {
                 ast::Expr::Name(name) => Ok(name.id.to_string()),
-                ast::Expr::Attribute(attr) => Ok(attr.attr.to_string()),
+                ast::Expr::Attribute(attr) => match attr.value.as_ref() {
+                    ast::Expr::Name(ast::ExprName { id, .. }) => Ok(format!("{id}.{}", attr.attr)),
+                    _ => Ok(attr.attr.to_string()),
+                },
                 _ => Err(errors::ParseError::ExprParse(base.clone())),
             })
             .collect::<Result<_>>()

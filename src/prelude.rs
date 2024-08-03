@@ -24,12 +24,12 @@ pub struct Method {
 
 impl Accessible for Field {
     fn is_public(&self) -> bool {
-        self.name.starts_with('_')
+        !self.name.starts_with('_')
     }
 }
 
 impl Accessible for Method {
     fn is_public(&self) -> bool {
-        self.name.starts_with('_')
+        !self.name.starts_with('_')
     }
 }
