@@ -18,26 +18,32 @@ pub struct MermaidClass {
 
 impl MermaidClass {
     pub fn print(&self) -> String {
-        let mut result = vec![];
+        let mut result = String::new();
 
         // Define class as well as the fields and methods therein.
         let class_name = format!("{INDENT}class {} {{{EOL}", self.name);
-        result.push(class_name);
-        result.extend(self.make_class_fields());
-        result.extend(self.make_class_methods());
-        result.push(format!("{INDENT}}}{EOL}{EOL}"));
+        result.push_str(&class_name);
 
-        for (i, parent) in self.parents.iter().enumerate() {
-            let parent_str = if i == self.parents.len() - 1 {
-                format!("{INDENT}`{parent}` <|-- {}", self.name)
-            } else {
-                format!("{INDENT}`{parent}` <|-- {}{EOL}", self.name)
-            };
-            result.push(parent_str)
+        for field in self.make_class_fields() {
+            result.push_str(&field);
+            result.push_str(EOL);
+        }
+        for method in self.make_class_methods() {
+            result.push_str(&method);
+            result.push_str(EOL);
         }
 
-        result.push(EOL.to_string());
-        result.join("")
+        result.push_str(&format!("{INDENT}}}{EOL}"));
+        if !self.parents.is_empty() {
+            result.push_str(EOL);
+        }
+
+        for parent in self.parents.iter() {
+            result.push_str(&format!("{INDENT}`{parent}` <|-- {}", self.name));
+            result.push_str(EOL);
+        }
+
+        result
     }
 
     fn get_access_modifier(is_public: bool) -> String {
@@ -74,7 +80,6 @@ impl MermaidClass {
                     method_str.push_str(&format!(" {return_type}"));
                 }
 
-                method_str.push_str(EOL);
                 method_str
             })
             .collect::<Vec<_>>()
@@ -86,15 +91,15 @@ impl MermaidClass {
             let access_modifier = Self::get_access_modifier(field.is_public());
             let line = match (&field.dtype, &field.default) {
                 (Some(t), _) => {
-                    format!("{INDENT}{INDENT}{access_modifier} {} {t}{EOL}", field.name)
+                    format!("{INDENT}{INDENT}{access_modifier} {} {t}", field.name)
                 }
                 (_, Some(d)) => {
                     format!(
-                        "{INDENT}{INDENT}{access_modifier} {} = {d}{EOL}",
+                        "{INDENT}{INDENT}{access_modifier} {} = {d}",
                         field.name
                     )
                 }
-                _ => format!("{INDENT}{INDENT}{access_modifier} {}{EOL}", field.name),
+                _ => format!("{INDENT}{INDENT}{access_modifier} {}", field.name),
             };
             result.push(line);
         }
@@ -137,9 +142,7 @@ impl MermaidMappable for PyClassInfo {
 //        .collect::<Vec<_>>()
 //        .join("\n")
 //}
-//
-//
-//
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,10 +166,12 @@ mod tests {
             format!("{}", cls.to_mermaid().print()),
             [
                 "    class TestClass {",
-                "        +id int",
+                "        + id int",
                 "    }",
+                "",
                 "    `AnotherTestClass` <|-- TestClass",
                 "    `ParentTestClass` <|-- TestClass",
+                "",
             ]
             .join(EOL)
         )

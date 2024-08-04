@@ -13,5 +13,6 @@ pub fn python_to_mermaid(src: String) -> Result<String, Box<dyn std::error::Erro
     let mapped = classes
         .map(|c| c.map(|c| c.to_mermaid().print()))
         .collect::<Result<Vec<_>, _>>()?;
+
     Ok(mapped.join(&format!("{EOL}{EOL}")))
 }

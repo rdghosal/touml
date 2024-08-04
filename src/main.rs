@@ -27,7 +27,10 @@ fn get_file_paths(root: PathBuf) -> io::Result<Vec<PathBuf>> {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let paths = get_file_paths(PathBuf::from("./tests/inputs/python"))?;
-    let diagram = paths
+
+    let mut result = String::from("classDiagram\r\n");
+
+    let diagrams = paths
         .iter()
         .filter_map(|p| match fs::read_to_string(p) {
             Ok(c) => Some(c),
@@ -38,13 +41,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .map(python_to_mermaid)
         .collect::<Result<Vec<_>, _>>()?
-        .join("\n\n") // FIXME
-        .trim_end()
-        .to_string();
+        .join("\r\n\r\n")
+    ;
+
+    result.push_str(&diagrams);
 
     //println!("Result: {:#?}", ast);
     // dbg!("{#?}", env::consts::OS);
     // Command::new("open").arg("src/index.html").spawn().unwrap();
-    println!("{}", diagram);
+    println!("{}", result);
     Ok(())
 }
