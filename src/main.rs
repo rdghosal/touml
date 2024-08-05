@@ -28,7 +28,7 @@ fn get_file_paths(root: PathBuf) -> io::Result<Vec<PathBuf>> {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let paths = get_file_paths(PathBuf::from("./tests/inputs/python"))?;
 
-    let mut header = String::from("classDiagram\n\n");
+    let header = String::from("classDiagram\n\n");
     let diagram = paths
         .iter()
         .filter_map(|p| match fs::read_to_string(p) {
