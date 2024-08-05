@@ -23,5 +23,4 @@ pub enum ParseError {
 
     #[error("found unexpected expression of type {0:?}")]
     UnexpectedExprType(ast::Expr),
-
 }

@@ -34,10 +34,11 @@ impl MermaidClass {
         }
 
         result.push_str(&format!("{INDENT}}}{EOL}"));
+
+        // Declare inhertiance relationships.
         if !self.parents.is_empty() {
             result.push_str(EOL);
         }
-
         for parent in self.parents.iter() {
             result.push_str(&format!("{INDENT}`{parent}` <|-- {}", self.name));
             result.push_str(EOL);
@@ -94,10 +95,7 @@ impl MermaidClass {
                     format!("{INDENT}{INDENT}{access_modifier} {} {t}", field.name)
                 }
                 (_, Some(d)) => {
-                    format!(
-                        "{INDENT}{INDENT}{access_modifier} {} = {d}",
-                        field.name
-                    )
+                    format!("{INDENT}{INDENT}{access_modifier} {} = {d}", field.name)
                 }
                 _ => format!("{INDENT}{INDENT}{access_modifier} {}", field.name),
             };

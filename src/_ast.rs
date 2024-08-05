@@ -1,6 +1,6 @@
 use crate::errors::ParseError;
-use crate::python::ParseResult;
 use crate::prelude::*;
+use crate::python::ParseResult;
 
 use core::iter::zip;
 use rustpython_parser::ast;
@@ -135,7 +135,7 @@ impl TryFrom<&ast::StmtAnnAssign> for Field {
         let dtype = value.annotation.print_annotation()?;
         let name = match *ident {
             ast::Expr::Name(ast::ExprName { id, .. }) => id.to_string(),
-            _ => return Err(ParseError::ExprParse(*ident))
+            _ => return Err(ParseError::ExprParse(*ident)),
         };
         let default = if value.value.is_some() {
             value.value.as_ref().and_then(|v| v.print_value())
