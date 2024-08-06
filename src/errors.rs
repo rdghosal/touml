@@ -1,5 +1,16 @@
+use std::fmt;
+
 use rustpython_parser::ast;
 use thiserror::Error;
+
+
+#[derive(Error, Debug)]
+pub struct CliError;
+impl fmt::Display for CliError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "oopsie")
+    }
+}
 
 #[derive(Error, Debug)]
 pub enum ParseError {

@@ -1,7 +1,7 @@
 pub(crate) mod prelude;
 
 mod _ast;
-mod errors;
+pub mod errors;
 mod mermaid;
 mod python;
 

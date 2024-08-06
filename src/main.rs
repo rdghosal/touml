@@ -1,5 +1,6 @@
 // use rayon::prelude::*;
 use clap::Parser;
+use std::io::Write;
 use std::{fs, io, path::PathBuf};
 use touml::python_to_mermaid;
 
@@ -8,8 +9,11 @@ static EXTENSIONS: [&str; 1] = ["py"];
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Cli {
-    #[clap(index(1))]
+    #[arg(index(1))]
     path: String,
+
+    #[arg(short, long)]
+    output: Option<String>,
 }
 
 fn get_file_paths(root: PathBuf) -> io::Result<Vec<PathBuf>> {
@@ -33,7 +37,8 @@ fn get_file_paths(root: PathBuf) -> io::Result<Vec<PathBuf>> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let root = Cli::parse().path;
+    let cfg = Cli::parse();
+    let root = cfg.path;
     let paths = get_file_paths(PathBuf::from(root))?;
 
     let header = String::from("classDiagram\n\n");
@@ -53,10 +58,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect::<Vec<_>>()
         .join("\n\n");
 
-    //println!("Result: {:#?}", ast);
+    if let Some(output) = cfg.output {
+        let mut path = PathBuf::from(output);
+        if path.is_dir() {
+            path.push(PathBuf::from("output.mmd"));
+            let mut file = std::fs::File::create(path)?;
+            file.write_all((header + &diagram).as_bytes())?;
+        } else {
+            return Err(Box::new(touml::errors::CliError));
+        }
+    } else {
+        println!("{}", header + &diagram);
+    }
+
+    // println!("Result: {:#?}", ast);
     // dbg!("{#?}", env::consts::OS);
     // Command::new("open").arg("src/index.html").spawn().unwrap();
 
-    println!("{}", header + &diagram);
     Ok(())
 }
