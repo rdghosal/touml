@@ -1,9 +1,16 @@
 // use rayon::prelude::*;
-use std::path::PathBuf;
-use std::{fs, io};
+use clap::Parser;
+use std::{fs, io, path::PathBuf};
 use touml::python_to_mermaid;
 
 static EXTENSIONS: [&str; 1] = ["py"];
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    #[clap(index(1))]
+    path: String,
+}
 
 fn get_file_paths(root: PathBuf) -> io::Result<Vec<PathBuf>> {
     let mut result = Vec::<PathBuf>::new();
@@ -26,7 +33,8 @@ fn get_file_paths(root: PathBuf) -> io::Result<Vec<PathBuf>> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let paths = get_file_paths(PathBuf::from("./tests/inputs/python"))?;
+    let root = Cli::parse().path;
+    let paths = get_file_paths(PathBuf::from(root))?;
 
     let header = String::from("classDiagram\n\n");
     let diagram = paths
