@@ -1,19 +1,21 @@
 // use rayon::prelude::*;
+use anyhow::{self, Result};
 use clap::Parser;
 use std::io::Write;
 use std::{fs, io, path::PathBuf};
 use touml::python_to_mermaid;
 
 static EXTENSIONS: [&str; 1] = ["py"];
+static OUTPUT_FILENAME: &str = "output.mmd";
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Cli {
     #[arg(index(1))]
-    path: String,
+    path: PathBuf,
 
     #[arg(short, long)]
-    output: Option<String>,
+    output: Option<PathBuf>,
 }
 
 fn get_file_paths(root: PathBuf) -> io::Result<Vec<PathBuf>> {
@@ -36,10 +38,9 @@ fn get_file_paths(root: PathBuf) -> io::Result<Vec<PathBuf>> {
     Ok(result)
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let cfg = Cli::parse();
-    let root = cfg.path;
-    let paths = get_file_paths(PathBuf::from(root))?;
+fn main() -> Result<()> {
+    let mut cfg = Cli::parse();
+    let paths = get_file_paths(cfg.path)?;
 
     let header = String::from("classDiagram\n\n");
     let diagram = paths
@@ -52,20 +53,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         })
         .map(python_to_mermaid)
-        .collect::<Result<Vec<_>, _>>()?
+        .collect::<Result<Vec<_>>>()?
         .into_iter()
         .flatten()
         .collect::<Vec<_>>()
         .join("\n\n");
 
-    if let Some(output) = cfg.output {
-        let mut path = PathBuf::from(output);
-        if path.is_dir() {
-            path.push(PathBuf::from("output.mmd"));
-            let mut file = std::fs::File::create(path)?;
+    if let Some(ref mut output) = cfg.output {
+        if output.is_dir() && output.exists() {
+            output.push(PathBuf::from(OUTPUT_FILENAME));
+            let mut file = std::fs::File::create(output)?;
             file.write_all((header + &diagram).as_bytes())?;
         } else {
-            return Err(Box::new(touml::errors::CliError));
+            anyhow::bail!("Value to `output` must be an existing directory path.");
         }
     } else {
         println!("{}", header + &diagram);

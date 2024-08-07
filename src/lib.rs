@@ -5,10 +5,11 @@ pub mod errors;
 mod mermaid;
 mod python;
 
+use anyhow::Result;
 use mermaid::MermaidMappable;
 use prelude::*;
 
-pub fn python_to_mermaid(src: String) -> Result<Option<String>, Box<dyn std::error::Error>> {
+pub fn python_to_mermaid(src: String) -> Result<Option<String>> {
     let result = python::PyClassInfo::from_source(&src)?
         .map(|c| c.map(|c| c.to_mermaid().print()))
         .collect::<Result<Vec<_>, _>>()?
