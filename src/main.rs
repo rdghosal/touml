@@ -1,8 +1,10 @@
 // use rayon::prelude::*;
 use anyhow::{self, Result};
 use clap::Parser;
-use std::io::Write;
-use std::{fs, io, path::PathBuf};
+use std::fs;
+use std::io::{self, Write};
+use std::path::PathBuf;
+use std::process::Command;
 use touml::python_to_mermaid;
 
 static EXTENSIONS: [&str; 1] = ["py"];
@@ -62,18 +64,28 @@ fn main() -> Result<()> {
     if let Some(ref mut output) = cfg.output {
         if output.is_dir() && output.exists() {
             output.push(PathBuf::from(OUTPUT_FILENAME));
-            let mut file = std::fs::File::create(output)?;
+            let mut file = fs::File::create(output)?;
             file.write_all((header + &diagram).as_bytes())?;
         } else {
             anyhow::bail!("Value to `output` must be an existing directory path.");
         }
     } else {
-        println!("{}", header + &diagram);
-    }
+        // TODO: Separate branch that handles spinning up server (per a command)
+        // and print to stdout as the default behavior.
+        // println!("{}", header + &diagram);
 
-    // println!("Result: {:#?}", ast);
-    // dbg!("{#?}", env::consts::OS);
-    // Command::new("open").arg("src/index.html").spawn().unwrap();
+        let dir = tempfile::tempdir()?;
+        let file_path = dir.path().join("index.html");
+        let mut file = fs::File::create(&file_path)?;
+        write!(file, "{}", header + &diagram)?;
+
+        // dbg!("{#?}", env::consts::OS);
+        Command::new("open").arg(file_path).spawn()?;
+
+        // TODO: A loop keeping the server alive.
+
+        dir.close()?;
+    }
 
     Ok(())
 }
