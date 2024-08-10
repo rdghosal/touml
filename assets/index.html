@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>touml</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.23.4/ace.js"
+      type="text/javascript"
+    ></script>
+    <script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
+    <style type="text/css" media="screen">
+      @import url("https://fonts.googleapis.com/css2?family=Roboto+Serif:opsz,wght@8..144,300;8..144,400;8..144,500;8..144,600;8..144,700&family=Roboto:wght@300;400;700;900&display=swap");
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+      }
+
+      .flex-row {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
+      }
+
+      .page {
+        /*height: calc(100vh - 40px + 4.10rem);*/
+        font-family: "Roboto", sans-serif;
+        height: 100vh;
+        background-color: rgba(115, 136, 181, 0.75);
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: start;
+        align-items: center;
+        overflow-y: hidden;
+      }
+
+      #overlay {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0;
+        background-color: rgba(51, 51, 51, 0.4);
+        z-index: 100;
+        display: none;
+      }
+
+      .modal {
+        display: none;
+        background-color: rgba(115, 126, 166, 1);
+        opacity: 1;
+        color: rgba(20, 45, 96, 1);
+        box-shadow: 0px -1px 2px 2px rgba(51, 51, 51, 0.1),
+          0px 1px 2px 2px rgba(51, 51, 51, 0.1),
+          1px 0 2px 2px rgba(51, 51, 51, 0.1),
+          -1px 0 2px 2px rgba(51, 51, 51, 0.1);
+        position: absolute;
+        height: 350px;
+        width: 600px;
+        z-index: 100;
+        margin: 0 auto;
+        padding: 2.5rem;
+        top: calc(25%);
+        border-radius: 1rem;
+        border: 0.5px solid #00204b;
+      }
+
+      input[type="file"] {
+        padding: 0.25rem 0;
+      }
+
+      input[type="file"]::file-selector-button {
+        color: #00204b;
+        background-color: rgba(166, 46, 50, 1);
+        border: 1px solid #00204b;
+        padding: 0.5rem 1.25rem;
+        font-family: "Roboto", sans-serif;
+        font-size: 1rem;
+        border-radius: 0.5rem;
+      }
+
+      input[type="file"]::file-selector-button:hover {
+        cursor: pointer;
+        transform: translateY(2px);
+      }
+
+      .close-btn {
+        background-color: rgba(20, 45, 96, 1);
+        -webkit-mask-image: url("assets/close-btn.svg");
+        -webkit-mask-repeat: no-repeat;
+        -webkit-mask-size: cover;
+        mask-image: url("assets/close-btn.svg");
+        webkit-mask-repeat: no-repeat;
+        webkit-mask-size: cover;
+        width: 20px;
+        height: 20px;
+      }
+
+      #ctrl-panel {
+        position: absolute;
+        left: 0;
+        z-index: 100;
+        height: 60%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 15px;
+        padding-bottom: 100px;
+        justify-content: space-between;
+      }
+
+      .info-btn {
+        width: 25px;
+        height: 25px;
+        background-color: rgba(115, 136, 181, 1);
+        -webkit-mask-image: url("assets/info-btn.svg");
+        -webkit-mask-repeat: no-repeat;
+        -webkit-mask-size: cover;
+        mask-image: url("assets/info-btn.svg");
+        webkit-mask-repeat: no-repeat;
+        webkit-mask-size: cover;
+        background-size: cover;
+        background-repeat: no-repeat;
+      }
+
+      .download-btn {
+        width: 40px;
+        height: 40px;
+        background-color: rgba(20, 45, 96, 1);
+        background-color: #002451;
+        -webkit-mask-image: url("assets/download-btn.svg");
+        -webkit-mask-repeat: no-repeat;
+        -webkit-mask-size: cover;
+        mask-image: url("assets/download-btn.svg");
+        webkit-mask-repeat: no-repeat;
+        webkit-mask-size: cover;
+      }
+
+      .upload-btn {
+        width: 32px;
+        height: 32px;
+        background-color: rgba(115, 136, 181, 1);
+        -webkit-mask-image: url("assets/upload-btn.svg");
+        -webkit-mask-repeat: no-repeat;
+        -webkit-mask-size: cover;
+        mask-image: url("assets/upload-btn.svg");
+        webkit-mask-repeat: no-repeat;
+        webkit-mask-size: cover;
+      }
+
+      .copy-btn {
+        width: 40px;
+        height: 40px;
+        background-color: rgba(20, 45, 96, 1);
+        background-color: #002451;
+        -webkit-mask-image: url("assets/copy-btn.svg");
+        -webkit-mask-repeat: no-repeat;
+        -webkit-mask-size: cover;
+        mask-image: url("assets/copy-btn.svg");
+        webkit-mask-repeat: no-repeat;
+        webkit-mask-size: cover;
+      }
+
+      .button:hover {
+        cursor: pointer;
+        background-color: rgba(166, 46, 50, 1);
+      }
+
+      .close-btn:hover {
+        cursor: pointer;
+        background-color: rgba(20, 45, 96, 0.5);
+      }
+
+      .modal__title {
+        font-family: "Roboto", sans-serif;
+        font-weight: 400;
+        font-size: 1.75rem;
+      }
+
+      .modal__text {
+        font-family: "Roboto", sans-serif;
+        font-weight: 300;
+        font-size: 1.1rem;
+        line-height: 1.5rem;
+      }
+
+      nav {
+        width: 100%;
+        height: 50px;
+        background-color: #00204b;
+        border-bottom: 1px solid rgba(115, 136, 181, 0.75);
+        padding: 0.5rem 1rem;
+        z-index: 200;
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        padding-right: 2rem;
+      }
+
+      .nav-btns {
+        width: 80px;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .nav-btns > * {
+        max-height: 30px;
+      }
+
+      .nav-btns > *:hover {
+        transform: scale(1.15);
+      }
+
+      .contents {
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+      }
+
+      .main {
+        display: flex;
+        color: #00204b;
+        flex-direction: row;
+        height: calc(100% - 40px);
+        align-items: start;
+        justify-content: end;
+        position: relative;
+        width: 100%;
+      }
+
+      .logo {
+        background-image: url(assets/logo-v2.svg);
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain;
+        width: 100px;
+        height: calc(40px - 1rem);
+      }
+
+      .help {
+        text-align: center;
+        font-family: "Roboto", sans-serif;
+        color: rgba(20, 45, 96, 1);
+        font-weight: 700;
+        font-size: 1.1rem;
+        letter-spacing: 0.02rem;
+        padding: 1rem 0 2rem 0;
+      }
+
+      .drop-zone {
+        border: 2px dashed rgba(20, 45, 96, 0.5);
+        background-color: 2px dashed rgba(20, 45, 96, 0.5);
+        background-color: rgba(51, 51, 51, 0.05);
+        width: 90%;
+        height: 75%;
+        border-radius: 1rem;
+        padding: 1.5rem;
+        text-align: left;
+      }
+
+      .drop-zone p {
+        margin-bottom: 1.5rem;
+      }
+
+      .modal__btn {
+        padding: 0.5rem 2rem;
+        font-family: "Roboto", sans-serif;
+        font-weight: 900;
+        border-radius: 5px;
+        border: none;
+      }
+
+      .contents {
+        justify-content: start;
+        gap: 5rem;
+        height: 100%;
+        width: 100vw;
+        /*max-width: 1600px;*/
+        overflow-y: auto;
+      }
+
+      .container {
+        height: 100%;
+        position: relative;
+        width: 45%;
+        display: flex;
+      }
+
+      #editor,
+      #cls-diagram {
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+      }
+
+      #editor {
+        font-size: 1.1rem;
+        height: 100%;
+        border-right: 1px solid rgba(115, 136, 181, 0.75);
+      }
+
+      #fallback {
+        height: 90%;
+        align-self: center;
+        padding: 1.25rem;
+        width: 100%;
+        text-align: center;
+        border: 3px dashed #00204b;
+        border-radius: 1rem;
+      }
+
+      #fallback > h1 {
+        margin-bottom: 0.25rem;
+        font-size: 2.5rem;
+      }
+
+      #fallback > p {
+        margin-bottom: 1.2rem;
+        font-size: 1.2rem;
+      }
+
+      .ace_content,
+      .ace_gutter {
+        padding-top: 0.5rem;
+      }
+
+      #cls-diagram {
+        display: none;
+        cursor: zoom-in;
+        height: 90%;
+      }
+
+      #ctrl-btns {
+        display: none;
+        flex-direction: row;
+        position: absolute;
+        z-index: 50;
+        bottom: 0;
+        right: 0;
+        height: 60px;
+        align-items: start;
+        justify-content: end;
+        width: 100%;
+      }
+
+      #ctrl-btns > * {
+        height: 2rem;
+        background-color: rgba(115, 136, 181, 1);
+        border: none;
+        font-family: "Roboto", sans-serif;
+        font-size: 0.9rem;
+        padding: 0.25rem 1rem;
+        color: #00204b;
+        border: 1px solid #00204b;
+      }
+
+      #ctrl-btns > *:nth-child(1) {
+        border-radius: 0.5rem 0 0 0.5rem;
+      }
+
+      #download-link {
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+      }
+
+      #ctrl-btns > *:nth-child(2) {
+        border-radius: 0 0.5rem 0.5rem 0;
+        border-left: none;
+      }
+
+      #ctrl-btns > *:hover {
+        background-color: rgba(166, 46, 50, 1);
+      }
+
+      #full-screen {
+        z-index: 1000;
+        height: 100vh;
+        width: 100vw;
+        position: absolute;
+        top: 0;
+        background-color: rgba(115, 126, 166, 1);
+        left: 0;
+        display: none;
+        padding: 1.5rem;
+      }
+
+      #full-screen > .flex-row {
+        background-color: rgba(115, 126, 166, 1);
+        z-index: 1000;
+        position: absolute;
+        width: 100vw;
+        top: 0;
+        left: 0;
+        padding: 1rem 1.5rem;
+      }
+
+      .help-txt {
+        font-family: "Roboto", sans-serif;
+        font-weight: 400;
+        font-size: 1.15rem;
+      }
+
+      #full-screen__img {
+        height: 100%;
+        width: 100%;
+        z-index: -500;
+      }
+
+      @media screen and (max-width: 1250px) {
+        #editor,
+        #cls-diagram {
+          font-size: 1rem;
+        }
+
+        .contents {
+          gap: 0rem;
+          justify-content: space-between;
+        }
+
+        .container {
+          width: 50%;
+        }
+
+        .contents > *:nth-child(2) {
+          padding: 0rem 0.5rem;
+        }
+
+        #ctrl-btns {
+          padding-right: 0.5rem;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <script>
+      function closeModal(e) {
+        const parentId = e.target.dataset.modal;
+        document.getElementById(parentId).style.display = "none";
+        document.getElementById("overlay").style.display = "none";
+      }
+
+      function openModal(e) {
+        const parentId = e.target.dataset.modal;
+        document.getElementById(parentId).style.display = "block";
+        document.getElementById("overlay").style.display = "block";
+      }
+    </script>
+    <div class="page">
+      <div id="full-screen">
+        <div class="flex-row">
+          <p class="help-txt">
+            Drag to pan. Scroll to zoom. <kbd>Esc</kbd> to close.
+          </p>
+          <div
+            id="fs-cls-btn"
+            class="close-btn"
+            data-modal="full-screen"
+            onclick="closeModal(event);"
+          ></div>
+        </div>
+        <img id="full-screen__img" src="" />
+      </div>
+      <div id="overlay"></div>
+      <div class="modal" id="help">
+        <div class="flex-row">
+          <h2 class="modal__title">Help</h2>
+          <div
+            class="close-btn"
+            data-modal="help"
+            onclick="closeModal(event);"
+          ></div>
+        </div>
+        <p class="modal__text">
+          enter valid pydantic models and watch their UML appear!
+        </p>
+      </div>
+      <div class="modal" id="upload">
+        <div class="flex-row">
+          <h2 class="modal__title">Code Upload</h2>
+          <div
+            class="close-btn"
+            data-modal="upload"
+            onclick="closeModal(event);"
+          ></div>
+        </div>
+        <div class="drop-zone">
+          <p class="modal__text">
+            Upload or drag a folder here to upload its contents to the editor.
+          </p>
+          <input type="file" webkitdirectory mozdirectory />
+        </div>
+      </div>
+      <nav>
+        <div class="logo"></div>
+        <div class="nav-btns">
+          <div
+            class="button upload-btn"
+            title="Upload files"
+            data-modal="upload"
+            onclick="openModal(event);"
+          ></div>
+          <div
+            class="button info-btn"
+            title="Help"
+            data-modal="help"
+            onclick="openModal(event);"
+          ></div>
+        </div>
+      </nav>
+      <div class="main">
+        <div class="contents">
+          <div class="container">
+            <div id="editor"></div>
+          </div>
+          <div class="container">
+            <div id="fallback">
+              <h1>Give us some Python!</h1>
+              <p>Upload a folder or write a class to get started.</p>
+              <input type="file" webkitdirectory mozdirectory />
+            </div>
+            <img id="cls-diagram" src="" />
+            <div id="ctrl-btns">
+              <a href="" class="button" id="download-link">
+                <div>Save Image</div>
+              </a>
+              <button class="button" id="copy-btn">Copy Code</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+      import init, { python_to_mermaid } from "/assets/touml_wasm.js";
+
+      mermaid.initialize({ startOnLoad: false, theme: "dark" });
+      const editor = ace.edit("editor");
+      editor.renderer.setPadding(14);
+      editor.setTheme("ace/theme/tomorrow_night_blue");
+      editor.session.setMode("ace/mode/python");
+      editor.setKeyboardHandler("ace/keyboard/vim");
+
+      const mermaidContainer = document.getElementById("cls-diagram");
+      const fullScreenContainer = document.getElementById("full-screen");
+      const fullMermaid = document.getElementById("full-screen__img");
+      const downloadLink = document.getElementById("download-link");
+      const overlay = document.getElementById("overlay");
+      const modals = Array.from(document.getElementsByClassName("modal"));
+      const copyButton = document.getElementById("copy-btn");
+      const panzoom = Panzoom(fullMermaid, { maxScale: 5 });
+      const fileInputs = document.querySelectorAll("input[type=file]");
+
+      panzoom.zoom(0.5, { animate: true });
+      fullMermaid.addEventListener("wheel", panzoom.zoomWithWheel);
+
+      copyButton.addEventListener("click", () => {
+        navigator.clipboard.writeText(sessionStorage.getItem("mermaid"));
+      });
+
+      overlay.addEventListener("click", () => {
+        modals.forEach((m) => (m.style.display = "none"));
+        overlay.style.display = "none";
+      });
+
+      mermaidContainer.addEventListener("click", () => {
+        fullScreenContainer.style.display = "block";
+      });
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          document.getElementById("fs-cls-btn").click();
+        }
+      });
+
+      fileInputs.forEach((fi) => {
+        fi.addEventListener("change", (event) => {
+          const pyFiles = Array.from(event.target.files).filter((f) =>
+            f.name.endsWith(".py")
+          );
+
+          let loadCount = 0;
+          for (const [i, f] of pyFiles.entries()) {
+            const reader = new FileReader();
+            reader.addEventListener("load", (e) => {
+              const curr = sessionStorage.getItem("fileContents") || "";
+              sessionStorage.setItem(
+                "fileContents",
+                curr + (curr ? "\n" : "") + reader.result
+              );
+              loadCount++;
+              if (loadCount === pyFiles.length) {
+                editor.setValue(sessionStorage.getItem("fileContents"));
+                sessionStorage.removeItem("fileContents");
+              }
+            });
+            reader.readAsText(f);
+          }
+          fi.value = "";
+          overlay.click();
+        });
+      });
+
+      async function initWasm() {
+        await init();
+        editor.on("input", async () => {
+          let output = "";
+          try {
+            output = python_to_mermaid(editor.getValue());
+          } catch (e) {
+            console.debug(e);
+          }
+          if (output) {
+            sessionStorage.setItem("mermaid", output);
+            const { svg } = await mermaid.render("classDiagram", output);
+            const blob = new Blob([svg], { type: "image/svg+xml" });
+            const src = URL.createObjectURL(blob);
+            mermaidContainer.src = src;
+            fullMermaid.src = src;
+            const fallback = document.getElementById("fallback");
+            fallback.style.display = "none";
+            mermaidContainer.style.display = "block";
+            document.getElementById("ctrl-btns").style.display = "flex";
+            downloadLink.href = src;
+            downloadLink.download = new Date().toString() + ".svg";
+          }
+        });
+      }
+      initWasm();
+    </script>
+  </body>
+</html>

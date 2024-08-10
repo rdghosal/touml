@@ -1,7 +1,8 @@
 // use rayon::prelude::*;
 use anyhow::{self, Result};
 use clap::Parser;
-use std::fs;
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
+use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::Command;
@@ -54,7 +55,7 @@ fn main() -> Result<()> {
                 None
             }
         })
-        .map(python_to_mermaid)
+        .map(|src| python_to_mermaid(src).map_err(|e| anyhow::anyhow!(e)))
         .collect::<Result<Vec<_>>>()?
         .into_iter()
         .flatten()
@@ -64,7 +65,7 @@ fn main() -> Result<()> {
     if let Some(ref mut output) = cfg.output {
         if output.is_dir() && output.exists() {
             output.push(PathBuf::from(OUTPUT_FILENAME));
-            let mut file = fs::File::create(output)?;
+            let mut file = File::create(output)?;
             file.write_all((header + &diagram).as_bytes())?;
         } else {
             anyhow::bail!("Value to `output` must be an existing directory path.");
@@ -74,17 +75,26 @@ fn main() -> Result<()> {
         // and print to stdout as the default behavior.
         // println!("{}", header + &diagram);
 
-        let dir = tempfile::tempdir()?;
-        let file_path = dir.path().join("index.html");
-        let mut file = fs::File::create(&file_path)?;
-        write!(file, "{}", header + &diagram)?;
+        // let dir = tempfile::tempdir()?;
+        // let file_path = dir.path().join("index.html");
+        // let mut file = File::create(&file_path)?;
+        // write!(file, "{}", header + &diagram)?;
 
         // dbg!("{#?}", env::consts::OS);
-        Command::new("open").arg(file_path).spawn()?;
+        Command::new("open").arg("assets/index.html").output()?;
 
-        // TODO: A loop keeping the server alive.
+        loop {
+            match event::read()? {
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('c'),
+                    modifiers: KeyModifiers::CONTROL,
+                    ..
+                }) => break,
+                _ => continue,
+            }
+        }
 
-        dir.close()?;
+//         dir.close()?;
     }
 
     Ok(())
