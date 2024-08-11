@@ -3,7 +3,8 @@ use anyhow::{self, Result};
 use clap::Parser;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use std::fs::{self, File};
-use std::io::{self, Write};
+use std::io::{self, prelude::*, BufReader, Write};
+use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::Command;
 use touml::python_to_mermaid;
@@ -39,6 +40,37 @@ fn get_file_paths(root: PathBuf) -> io::Result<Vec<PathBuf>> {
         }
     }
     Ok(result)
+}
+
+fn get_filename_and_code(url: &str) -> Option<(String, String)> {
+    match url {
+        "/" => Some(("HTTP/1.1 200 OK".into(), "assets/index.html".into())),
+        url if url.starts_with("/assets") => {
+            let filename = url.split("/").nth(2).unwrap_or_default();
+            Some(("HTTP/1.1 200 OK".into(), format!("assets/{filename}")))
+        }
+        _ => None,
+    }
+}
+
+fn handle_connection(mut stream: TcpStream) {
+    let buf_reader = BufReader::new(&mut stream);
+    let request_line = buf_reader.lines().next().unwrap().unwrap();
+
+    let mut parts = request_line.split(' ');
+    let (status_line, filename) = match parts.next() {
+        Some("GET") => get_filename_and_code(parts.next().unwrap_or_default())
+            .unwrap_or_else(|| ("HTTP/1.1 404 NOT FOUND".into(), "404.html".into())),
+        _ => ("HTTP/1.1 404 NOT FOUND".into(), "404.html".into()),
+    };
+
+    dbg!(&filename);
+    let contents = fs::read_to_string(filename).unwrap();
+    let length = contents.len();
+
+    let response = format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
+
+    stream.write_all(response.as_bytes()).unwrap();
 }
 
 fn main() -> Result<()> {
@@ -81,7 +113,14 @@ fn main() -> Result<()> {
         // write!(file, "{}", header + &diagram)?;
 
         // dbg!("{#?}", env::consts::OS);
-        Command::new("open").arg("assets/index.html").output()?;
+        // Command::new("open").arg("assets/index.html").output()?;
+
+        let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
+        for stream in listener.incoming() {
+            let stream = stream.unwrap();
+
+            handle_connection(stream);
+        }
 
         loop {
             match event::read()? {
@@ -94,7 +133,7 @@ fn main() -> Result<()> {
             }
         }
 
-//         dir.close()?;
+        //         dir.close()?;
     }
 
     Ok(())
