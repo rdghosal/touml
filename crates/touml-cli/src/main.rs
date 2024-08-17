@@ -42,14 +42,19 @@ fn get_file_paths(root: PathBuf) -> io::Result<Vec<PathBuf>> {
     Ok(result)
 }
 
-fn get_filename_and_code(url: &str) -> Option<(String, String)> {
+fn get_filename_and_code(url: &str) -> (&str, Option<PathBuf>) {
     match url {
-        "/" => Some(("HTTP/1.1 200 OK".into(), "assets/index.html".into())),
+        "/" => ("HTTP/1.1 200 OK", Some(PathBuf::from("assets/index.html"))),
         url if url.starts_with("/assets") => {
             let filename = url.split("/").nth(2).unwrap_or_default();
-            Some(("HTTP/1.1 200 OK".into(), format!("assets/{filename}")))
-        }
-        _ => None,
+            let path = PathBuf::from(format!("assets/{filename}"));
+            if path.exists() {
+                ("HTTP/1.1 200 OK", Some(path))
+            } else {
+                ("HTTP/1.1 404 NOT FOUND", None)
+            }
+        },
+        _ => ("HTTP/1.1 404 NOT FOUND", None)
     }
 }
 
@@ -59,18 +64,20 @@ fn handle_connection(mut stream: TcpStream) {
 
     let mut parts = request_line.split(' ');
     let (status_line, filename) = match parts.next() {
-        Some("GET") => get_filename_and_code(parts.next().unwrap_or_default())
-            .unwrap_or_else(|| ("HTTP/1.1 404 NOT FOUND".into(), "404.html".into())),
-        _ => ("HTTP/1.1 404 NOT FOUND".into(), "404.html".into()),
+        Some("GET") => get_filename_and_code(parts.next().unwrap_or_default()),
+        _ => ("HTTP/1.1 404 NOT FOUND", None),
     };
 
-    dbg!(&filename);
-    let contents = fs::read_to_string(filename).unwrap();
+    let contents = match filename {
+        Some(ref f) =>  {
+            fs::read_to_string(f)
+            .expect(&format!("Failed to read {}", f.to_string_lossy()))
+        },
+        None => String::new()
+    };
     let length = contents.len();
-
     let response = format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
-
-    stream.write_all(response.as_bytes()).unwrap();
+    let _ = stream.write_all(response.as_bytes());
 }
 
 fn main() -> Result<()> {
@@ -115,10 +122,12 @@ fn main() -> Result<()> {
         // dbg!("{#?}", env::consts::OS);
         // Command::new("open").arg("assets/index.html").output()?;
 
-        let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
+        let address = "127.0.0.1:7878";
+        let listener = TcpListener::bind(address).unwrap();
+        println!("Check http://{address:#}/");
+
         for stream in listener.incoming() {
             let stream = stream.unwrap();
-
             handle_connection(stream);
         }
 
