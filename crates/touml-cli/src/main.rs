@@ -62,6 +62,8 @@ fn main() -> Result<()> {
         } else {
             anyhow::bail!("Value to `output` must be an existing directory path.");
         }
+    } else {
+        std::io::stdout().write_all((header + &diagram).as_bytes())?;
     }
 
     Ok(())
