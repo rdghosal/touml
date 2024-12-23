@@ -10,4 +10,6 @@ path = "src/main.rs"
 [dependencies]
 anyhow = { version = "1.0.86", features = ["backtrace"] }
 clap = { version = "4.5.13", features = ["derive"] }
-touml = { path = "../touml"}
+glob = "0.3.1"
+touml = { path = "../touml" }
+walkdir = "2.5.0"

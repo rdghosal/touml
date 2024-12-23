@@ -6,7 +6,6 @@ use clap::Parser;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
-use utils::get_file_paths;
 
 static OUTPUT_FILENAME: &str = "output.mmd";
 
@@ -18,11 +17,23 @@ struct Cli {
 
     #[arg(short, long)]
     output: Option<PathBuf>,
+
+    /// Globs to exclude directories from the search, e.g. `**/my_secret_dir/*`.
+    #[arg(long, value_delimiter = ' ', num_args = 1..)]
+    exclude_dirs: Vec<String>,
+
+    /// Globs to exclude files from the search, e.g. `**/my_secret_file.*`.
+    #[arg(long, value_delimiter = ' ')]
+    exclude_files: Vec<String>,
+
+    /// Globs to exclude classes from the search, e.g. `*Secret*`.
+    #[arg(long, value_delimiter = ' ')]
+    exclude_classes: Vec<String>,
 }
 
 fn main() -> Result<()> {
     let mut cfg = Cli::parse();
-    let paths = get_file_paths(cfg.path)?;
+    let paths = utils::get_file_paths(cfg.path, &cfg.exclude_dirs, &cfg.exclude_files)?;
 
     let header = String::from("classDiagram\n\n");
     let diagram = paths
@@ -34,7 +45,9 @@ fn main() -> Result<()> {
                 None
             }
         })
-        .map(|src| touml::python_to_mermaid(src).map_err(|e| anyhow::anyhow!(e)))
+        .map(|src| {
+            touml::python_to_mermaid(src, &cfg.exclude_classes).map_err(|e| anyhow::anyhow!(e))
+        })
         .collect::<Result<Vec<_>>>()?
         .into_iter()
         .flatten()
