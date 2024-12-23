@@ -5,8 +5,6 @@ touml
 
 A CLI to convert Python code to Mermaid diagrams.
 
-[TOC]
-
 ## Installation
 
 ```shell
