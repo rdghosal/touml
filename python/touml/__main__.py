@@ -2,7 +2,7 @@
 
 References
 ----------
-The approach here is *heavily* inspired by ruff.
+The approach here is heavily inspired by ruff.
 https://github.com/astral-sh/ruff
 
 """

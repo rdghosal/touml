@@ -9,12 +9,14 @@ use std::path::PathBuf;
 
 static OUTPUT_FILENAME: &str = "output.mmd";
 
+/// A tool to generate mermaid class diagrams from Python source code.
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Cli {
     #[arg(index(1))]
     path: PathBuf,
 
+    /// Path to write the output to. If not provided, the output will be written to stdout.
     #[arg(short, long)]
     output: Option<PathBuf>,
 
