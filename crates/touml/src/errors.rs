@@ -3,7 +3,6 @@ use std::fmt;
 use rustpython_parser::ast;
 use thiserror::Error;
 
-
 #[derive(Error, Debug)]
 pub struct CliError;
 impl fmt::Display for CliError {

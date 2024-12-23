@@ -5,11 +5,9 @@ pub mod errors;
 mod mermaid;
 mod python;
 
-use mermaid::MermaidMappable;
+use mermaid::MermaidAdapter;
 use prelude::*;
-use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
 pub fn python_to_mermaid(src: String) -> Result<Option<String>, String> {
     let result = python::PyClassInfo::from_source(&src)
         .map_err(|e| e.to_string())?

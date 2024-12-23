@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 
 static INDENT: &str = "    ";
 
-pub trait MermaidMappable {
+pub trait MermaidAdapter {
     fn to_mermaid(self) -> MermaidClass;
 }
 
@@ -105,7 +105,7 @@ impl MermaidClass {
     }
 }
 
-impl MermaidMappable for PyClassInfo {
+impl MermaidAdapter for PyClassInfo {
     // TODO: make opinionation here configurable
     fn to_mermaid(self) -> MermaidClass {
         let methods = self
