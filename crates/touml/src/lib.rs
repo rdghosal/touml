@@ -15,16 +15,14 @@ pub fn python_to_mermaid(src: String, exclude_names: &[String]) -> Result<Option
         .collect::<Vec<_>>();
     let result = python::PyClassInfo::from_source(&src)
         .map_err(|e| e.to_string())?
-        .filter_map(|c| match c {
-            Ok(c) => {
-                if exclude_patterns.iter().any(|p| p.matches(&c.name)) {
+        .filter_map(|c| {
+            if let Ok(cc) = c {
+                if exclude_patterns.iter().any(|p| p.matches(&cc.name)) {
                     None
                 } else {
-                    Some(c.to_mermaid().print())
+                    Some(cc.to_mermaid().print())
                 }
-            }
-            Err(e) => {
-                eprintln!("Error: {}", e);
+            } else {
                 None
             }
         })
