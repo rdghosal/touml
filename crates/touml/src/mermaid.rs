@@ -40,7 +40,11 @@ impl MermaidClass {
             result.push_str(EOL);
         }
         for parent in self.parents.iter() {
-            result.push_str(&format!("{INDENT}`{parent}` <|-- {}", self.name));
+            if parent.contains('.') {
+                result.push_str(&format!("{INDENT}`{parent}` <|-- {}", self.name));
+            } else {
+                result.push_str(&format!("{INDENT}{parent} <|-- {}", self.name));
+            }
             result.push_str(EOL);
         }
 

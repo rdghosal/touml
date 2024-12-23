@@ -11,5 +11,6 @@ path = "src/main.rs"
 anyhow = { version = "1.0.86", features = ["backtrace"] }
 clap = { version = "4.5.13", features = ["derive"] }
 glob = "0.3.1"
+rayon = "1.10.0"
 touml = { path = "../touml" }
 walkdir = "2.5.0"

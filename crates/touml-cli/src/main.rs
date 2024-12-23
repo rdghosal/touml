@@ -1,13 +1,13 @@
-// use rayon::prelude::*;
 mod utils;
 
 use anyhow::{self, Result};
 use clap::Parser;
+use rayon::prelude::*;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
 
-static OUTPUT_FILENAME: &str = "output.mmd";
+static OUTPUT_FILENAME: &str = "out.mmd";
 
 /// A tool to generate mermaid class diagrams from Python source code.
 #[derive(Parser, Debug)]
@@ -47,6 +47,7 @@ fn main() -> Result<()> {
                 None
             }
         })
+        .par_bridge()
         .map(|src| {
             touml::python_to_mermaid(src, &cfg.exclude_classes).map_err(|e| anyhow::anyhow!(e))
         })
@@ -62,7 +63,7 @@ fn main() -> Result<()> {
             let mut file = File::create(output)?;
             file.write_all((header + &diagram).as_bytes())?;
         } else {
-            anyhow::bail!("Value to `output` must be an existing directory path.");
+            anyhow::bail!("--output (-o) must be an existing directory path.");
         }
     } else {
         std::io::stdout().write_all((header + &diagram).as_bytes())?;
