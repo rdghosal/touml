@@ -25,11 +25,11 @@ struct Cli {
     exclude_dirs: Vec<String>,
 
     /// Globs to exclude files from the search, e.g. `**/my_secret_file.*`.
-    #[arg(long, value_delimiter = ' ')]
+    #[arg(long, value_delimiter = ' ', num_args = 1..)]
     exclude_files: Vec<String>,
 
     /// Globs to exclude classes from the search, e.g. `*Secret*`.
-    #[arg(long, value_delimiter = ' ')]
+    #[arg(long, value_delimiter = ' ', num_args = 1..)]
     exclude_classes: Vec<String>,
 }
 
