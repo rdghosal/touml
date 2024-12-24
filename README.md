@@ -3,7 +3,7 @@ touml
 
 > pronounced /ˈtoo͞m.əl/
 
-A CLI to convert Python code to Mermaid diagrams.
+A CLI, written in Rust, that converts Python classes to a unified Mermaid diagram.
 
 ## Installation
 
@@ -121,6 +121,9 @@ classDiagram
 
 ```
 
+Pipe the above to `mmdc -i - -t dark -b transparent`, and you get:
+![Example](assets/readme-example.png)
+
 ## FAQs
 
 ### What's Mermaid?
@@ -144,3 +147,18 @@ Draw.io, or any other tool that supports Mermaid diagrams.
 ```shell
 $ touml path/to/python/files | pbcopy
 ```
+
+### Why Rust?
+The idea was to make `touml` invocable from a CI pipeline, and we all know how much we want those to be fast.
+
+### Sure, but how fast is it?
+Blazingly fast, of course. For anecdotal evidence, where I accidentally executed `touml` against my current directory (including my virtual environment), I was able to generate Mermaid output for 427 Python files in 0.72 seconds. Not convinced? Try it out yourself!
+
+### How does it work?
+Easy.
+1. Parse all Python files in a given directory, minus those that a user wants to exclude.
+2. Extract all classes and their attributes, using the Python AST.
+3. Generate a Mermaid diagram from the extracted classes and attributes.
+
+### Does `touml` support other languages?
+At present, no: `touml` only generates Mermaid from Python. However, so long as there's a data model that `impl`s the `MermaidAdapter` trait, sky's the limit.
