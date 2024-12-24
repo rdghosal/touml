@@ -24,6 +24,6 @@ repository = "https://github.com/rdghosal/touml"
 [tool.maturin]
 bindings = "bin"
 manifest-path = "crates/touml-cli/Cargo.toml"
-module-name = "touml._toml"
+module-name = "touml"
 python-source = "python"
 strip = true
