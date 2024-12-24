@@ -1,7 +1,12 @@
 [package]
 name = "touml-cli"
-version = "0.1.0"
-edition = "2021"
+version = "0.1.1"
+publish = true
+authors = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+license = { workspace = true }
+readme = "../../README.md"
 
 [[bin]]
 name = "touml"
