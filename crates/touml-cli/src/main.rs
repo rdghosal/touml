@@ -16,21 +16,25 @@ struct Cli {
     #[arg(index(1))]
     path: PathBuf,
 
-    /// Path to write the output to. If not provided, the output will be written to stdout.
+    /// Path to write the output to as an `mmd` file. If unprovided, the output is written to stdout.
     #[arg(short, long)]
     output: Option<PathBuf>,
 
-    /// Globs to exclude directories from the search, e.g. `**/my_secret_dir/*`.
+    /// Space-delimited glob patterns to exclude directories from the search, e.g. `**/my_secret_dir/*`.
     #[arg(long, value_delimiter = ' ', num_args = 1..)]
     exclude_dirs: Vec<String>,
 
-    /// Globs to exclude files from the search, e.g. `**/my_secret_file.*`.
+    /// Space-delimited glob patterns to exclude files from the search, e.g. `*secret*`.
     #[arg(long, value_delimiter = ' ', num_args = 1..)]
     exclude_files: Vec<String>,
 
-    /// Globs to exclude classes from the search, e.g. `*Secret*`.
+    /// Space-delimited glob patterns to exclude classes from the diagram, e.g. `*Secret*`.
     #[arg(long, value_delimiter = ' ', num_args = 1..)]
     exclude_classes: Vec<String>,
+
+    /// Space-delimited glob patterns to exclude base classes and their children from the diagram, e.g. `*Base*`.
+    #[arg(long, value_delimiter = ' ', num_args = 1..)]
+    exclude_bases: Vec<String>,
 }
 
 fn main() -> Result<()> {
@@ -49,7 +53,8 @@ fn main() -> Result<()> {
         })
         .par_bridge()
         .map(|src| {
-            touml::python_to_mermaid(src, &cfg.exclude_classes).map_err(|e| anyhow::anyhow!(e))
+            touml::python_to_mermaid(src, &cfg.exclude_classes, &cfg.exclude_bases)
+                .map_err(|e| anyhow::anyhow!(e))
         })
         .collect::<Result<Vec<_>>>()?
         .into_iter()
