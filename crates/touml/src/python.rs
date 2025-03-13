@@ -268,6 +268,60 @@ mod test {
     }
 
     #[test]
+    fn test_parse_annotation_union() {
+        let py = "x: dict | int | None = {'a': (1, 2), 'b': (2,), 'c': (3, 3, 3,)}";
+        if let ast::Stmt::AnnAssign(ref a) = get_stmt(py) {
+            let assignment = Field::try_from(a).unwrap();
+            assert_eq!(
+                assignment,
+                Field {
+                    name: "x".to_string(),
+                    dtype: Some("dict | int | None".to_string()),
+                    default: Some("{'a': (1, 2,), 'b': (2,), 'c': (3, 3, 3,)}".to_string()),
+                }
+            );
+        } else {
+            panic!("failed to parse assignment");
+        }
+    }
+
+    #[test]
+    fn test_parse_annotation_typing_union() {
+        let py = "x: Union[dict, int, None] = {'a': (1, 2), 'b': (2,), 'c': (3, 3, 3,)}";
+        if let ast::Stmt::AnnAssign(ref a) = get_stmt(py) {
+            let assignment = Field::try_from(a).unwrap();
+            assert_eq!(
+                assignment,
+                Field {
+                    name: "x".to_string(),
+                    dtype: Some("Union[dict, int, None]".to_string()),
+                    default: Some("{'a': (1, 2,), 'b': (2,), 'c': (3, 3, 3,)}".to_string()),
+                }
+            );
+        } else {
+            panic!("failed to parse assignment");
+        }
+    }
+
+    #[test]
+    fn test_parse_annotation_attrs() {
+        let py = "x: t.Any = None";
+        if let ast::Stmt::AnnAssign(ref a) = get_stmt(py) {
+            let assignment = Field::try_from(a).unwrap();
+            assert_eq!(
+                assignment,
+                Field {
+                    name: "x".to_string(),
+                    dtype: Some("t.Any".to_string()),
+                    default: Some("None".to_string()),
+                }
+            );
+        } else {
+            panic!("failed to parse assignment");
+        }
+    }
+
+    #[test]
     fn test_parse_fields_from_init() {
         #[rustfmt::skip]
         let py = [

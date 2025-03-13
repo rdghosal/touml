@@ -35,7 +35,7 @@ class StrClass(Base, StrMixin):
 class IntClass(Base, IntMixin):
     value_1: int
     value_2: list[int]
-    value_3: dict[str, int] = Field(default_factory=init_value_3)
+    value_3: dict[str, int] | None = Field(default_factory=init_value_3, description='hello')
 
     @field_validator("value_1")
     @classmethod

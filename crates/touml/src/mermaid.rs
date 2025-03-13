@@ -171,8 +171,8 @@ mod tests {
                 "        + id int",
                 "    }",
                 "",
-                "    `AnotherTestClass` <|-- TestClass",
-                "    `ParentTestClass` <|-- TestClass",
+                "    AnotherTestClass <|-- TestClass",
+                "    ParentTestClass <|-- TestClass",
                 "",
             ]
             .join(EOL)

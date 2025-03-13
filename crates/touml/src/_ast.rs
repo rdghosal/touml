@@ -69,6 +69,7 @@ impl PyExpr for ast::Expr {
             ast::Expr::Name(n) => Ok(n.id.to_string()),
             ast::Expr::Constant(c) => match c.value {
                 ast::Constant::Ellipsis => Ok("...".into()),
+                ast::Constant::None => Ok("None".into()),
                 _ => handle_unexpected(self.clone())?,
             },
             ast::Expr::Subscript(s) => {
@@ -89,6 +90,16 @@ impl PyExpr for ast::Expr {
                     _ => handle_unexpected(self.clone())?,
                 };
                 Ok(format!("{}[{}]", t_outer, t_inner))
+            }
+            ast::Expr::BinOp(b) => {
+                let left = b.left.print_annotation()?;
+                let right = b.right.print_annotation()?;
+                Ok(format!("{} | {}", left, right))
+            }
+            ast::Expr::Attribute(a) => {
+                let attr = a.attr.to_string();
+                let value = a.value.print_annotation()?;
+                Ok(format!("{}.{}", value, attr))
             }
             _ => handle_unexpected(self.clone())?,
         }
